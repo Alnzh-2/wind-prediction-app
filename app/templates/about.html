@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% block title %}Tentang{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h2><i class="bi bi-info-circle me-2 text-accent"></i>Tentang Proyek</h2>
+  <p>Informasi lengkap mengenai dataset, metodologi penelitian, dan stack teknologi yang digunakan.</p>
+</div>
+
+<div class="row g-3">
+
+  <!-- Info Stasiun BMKG -->
+  <div class="col-lg-4 fade-in">
+    <div class="card-dark h-100">
+      <div class="card-dark-header">
+        <h6 class="mb-0"><i class="bi bi-broadcast me-2 text-cyan"></i>Stasiun BMKG</h6>
+      </div>
+      <div class="card-dark-body">
+        {% for label, val in [
+          ('Nama Stasiun','Stasiun Klimatologi Jawa Barat'),
+          ('ID WMO','96753'),
+          ('Lintang','6.50° LS'),
+          ('Bujur','107.61° BT'),
+          ('Elevasi','207 meter dpl'),
+          ('Rentang Data','1 Jan 2021 – 12 Mei 2026'),
+          ('Total Data','1,958 hari observasi (BMKG + ERA5)'),
+          ('Target Variable','FF_AVG — Kecepatan angin rata-rata (m/s)'),
+          ('Lisensi','Open Data BMKG'),
+        ] %}
+        <div class="about-item">
+          <span class="about-label">{{ label }}</span>
+          <span class="about-val {% if label == 'Nama Stasiun' %}fw-600{% endif %}">
+            {% if label == 'Lisensi' %}
+              <a href="https://dataonline.bmkg.go.id" target="_blank" class="text-accent text-decoration-none">Open Data BMKG</a>
+            {% elif label == 'ID WMO' %}
+              <span class="font-mono">{{ val }}</span>
+            {% else %}
+              {{ val }}
+            {% endif %}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Tech Stack -->
+  <div class="col-lg-4 fade-in delay-1">
+    <div class="card-dark h-100">
+      <div class="card-dark-header">
+        <h6 class="mb-0"><i class="bi bi-stack me-2 text-warning"></i>Tech Stack</h6>
+      </div>
+      <div class="card-dark-body">
+        {% for name, icon, color, desc in [
+          ('Python 3.10+',      'bi-filetype-py',     'accent',   'Bahasa pemrograman utama'),
+          ('Flask 3.0',         'bi-server',          'success',  'Web framework backend'),
+          ('TensorFlow 2.16',   'bi-cpu',             'danger',   'Training ANN dan LSTM'),
+          ('scikit-learn 1.4',  'bi-diagram-2',       'cyan',     'Linear Regression & K-Means'),
+          ('NumPy',             'bi-calculator',      'warning',  'Backpropagation manual'),
+          ('Pandas',            'bi-table',           'info',     'Preprocessing & manipulasi data'),
+          ('Open-Meteo API',    'bi-cloud-download',  'cyan',     'Data cuaca historis & prakiraan'),
+          ('Chart.js 4',        'bi-bar-chart',       'success',  'Visualisasi interaktif'),
+          ('Bootstrap 5.3',     'bi-grid-3x3',        'accent',   'Frontend UI/UX responsif'),
+        ] %}
+        <div class="stack-item">
+          <i class="bi {{ icon }} text-{{ color }}"></i>
+          <div>
+            <div class="fw-600 small">{{ name }}</div>
+            <div class="text-muted" style="font-size:0.73rem">{{ desc }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Ringkasan Metrik -->
+  <div class="col-lg-4 fade-in delay-2">
+    <div class="card-dark h-100">
+      <div class="card-dark-header">
+        <h6 class="mb-0"><i class="bi bi-trophy me-2 text-warning"></i>Ringkasan Metrik Model</h6>
+      </div>
+      <div class="card-dark-body">
+        {% if metrics %}
+          {% for key, label in [
+            ('linear_regression','Linear Regression'),
+            ('ann','ANN'),
+            ('lstm','RNN/LSTM'),
+            ('backprop','Backpropagation'),
+          ] %}
+          {% set m = metrics[key] if key in metrics else {} %}
+          <div class="about-item">
+            <span class="about-label d-flex align-items-center gap-1">
+              {% if metrics.best_model == key %}<i class="bi bi-star-fill text-warning" style="font-size:0.7rem"></i>{% endif %}
+              {{ label }}
+            </span>
+            <span class="about-val font-mono" style="font-size:0.8rem">
+              {% if m.R2 is defined %}
+                <span class="{% if m.R2 > 0.3 %}text-success{% elif m.R2 > 0 %}text-warning{% else %}text-danger{% endif %}">
+                  R²={{ "%.4f"|format(m.R2) }}
+                </span>
+              {% else %}—{% endif %}
+            </span>
+          </div>
+          {% endfor %}
+          <div class="about-item">
+            <span class="about-label">K-Means</span>
+            <span class="about-val font-mono" style="font-size:0.8rem">
+              {% if metrics.kmeans %}Sil={{ "%.4f"|format(metrics.kmeans.Silhouette) }}{% else %}—{% endif %}
+            </span>
+          </div>
+          {% if metrics.trained_at %}
+          <div class="mt-3 pt-2 border-top border-secondary" style="font-size:0.73rem;color:var(--text-muted)">
+            <i class="bi bi-clock me-1"></i>Dilatih: {{ metrics.trained_at[:19].replace('T',' ') }}
+          </div>
+          {% endif %}
+        {% else %}
+          <div class="text-muted small">Model belum dilatih. Jalankan train.py terlebih dahulu.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Deskripsi Fitur Dataset -->
+<div class="card-dark mt-3 fade-in">
+  <div class="card-dark-header">
+    <h6 class="mb-0"><i class="bi bi-list-columns me-2 text-accent"></i>Deskripsi Fitur Dataset</h6>
+  </div>
+  <div class="card-dark-body p-0">
+    <div class="table-responsive">
+      <table class="table table-dark table-hover mb-0" style="font-size:0.82rem">
+        <thead>
+          <tr>
+            <th style="background:var(--bg-header);padding:10px 14px;font-size:0.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Kolom</th>
+            <th style="background:var(--bg-header);padding:10px 14px;font-size:0.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Nama Lengkap</th>
+            <th style="background:var(--bg-header);padding:10px 14px;font-size:0.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Satuan</th>
+            <th style="background:var(--bg-header);padding:10px 14px;font-size:0.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Tipe</th>
+            <th style="background:var(--bg-header);padding:10px 14px;font-size:0.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Keterangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for col, name, unit, tipe, ket in [
+            ('TANGGAL','Tanggal Observasi','—','Temporal','Tanggal pengamatan harian dari stasiun BMKG'),
+            ('TN','Suhu Minimum','°C','Fitur','Suhu udara minimum harian yang tercatat'),
+            ('TX','Suhu Maksimum','°C','Fitur','Suhu udara maksimum harian yang tercatat'),
+            ('TAVG','Suhu Rata-rata','°C','Fitur','Rata-rata suhu udara sepanjang hari'),
+            ('RH_AVG','Kelembaban Relatif Rata-rata','%','Fitur','Rata-rata kelembaban udara harian'),
+            ('RR','Curah Hujan','mm','Fitur','Jumlah curah hujan harian, 0 jika tidak hujan'),
+            ('SS','Lama Penyinaran Matahari','jam','Fitur','Durasi efektif sinar matahari per hari'),
+            ('FF_X','Kecepatan Angin Maksimum','m/s','Fitur','Kecepatan angin tertinggi yang tercatat'),
+            ('DDD_X','Arah Angin saat Maks','derajat','Fitur','Arah angin saat kecepatan maksimum terjadi'),
+            ('FF_AVG','Kecepatan Angin Rata-rata','m/s','TARGET','Variabel target yang diprediksi oleh semua model'),
+            ('DDD_CAR','Arah Angin Kartu','—','Kategorik','Notasi arah angin kartu (N/S/E/W/C dll)'),
+            ('day_of_year','Hari ke-N dalam Tahun','1–366','Engineered','Representasi posisi musiman dalam setahun'),
+            ('month','Bulan','1–12','Engineered','Bulan observasi, diturunkan dari TANGGAL'),
+            ('FF_AVG_lag1','Lag FF_AVG 1 Hari','m/s','Engineered','Nilai FF_AVG dari hari sebelumnya (t-1)'),
+            ('FF_AVG_lag7','Lag FF_AVG 7 Hari','m/s','Engineered','Nilai FF_AVG dari 7 hari sebelumnya (t-7)'),
+            ('FF_AVG_roll7','Rolling Mean 7 Hari','m/s','Engineered','Rata-rata bergerak FF_AVG selama 7 hari terakhir'),
+          ] %}
+          <tr>
+            <td class="font-mono text-accent" style="padding:8px 14px">{{ col }}</td>
+            <td style="padding:8px 14px">{{ name }}</td>
+            <td class="text-muted" style="padding:8px 14px">{{ unit }}</td>
+            <td style="padding:8px 14px">
+              {% if tipe == 'TARGET' %}<span class="badge bg-danger">TARGET</span>
+              {% elif tipe == 'Engineered' %}<span class="badge bg-warning text-dark">Engineered</span>
+              {% elif tipe == 'Kategorik' %}<span class="badge bg-secondary">Kategorik</span>
+              {% elif tipe == 'Temporal' %}<span class="badge bg-info text-dark">Temporal</span>
+              {% else %}<span class="badge" style="background:rgba(14,165,233,0.15);color:#0ea5e9">Fitur</span>
+              {% endif %}
+            </td>
+            <td class="text-muted" style="padding:8px 14px;font-size:0.78rem">{{ ket }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Metodologi -->
+<div class="card-dark mt-3 fade-in">
+  <div class="card-dark-header">
+    <h6 class="mb-0"><i class="bi bi-diagram-3 me-2 text-accent"></i>Alur Metodologi Penelitian</h6>
+  </div>
+  <div class="card-dark-body">
+    <div class="methodology-flow">
+      {% for num, icon, title, desc, color in [
+        ('1','bi-download','Pengumpulan Data','Download data observasi harian dari BMKG DataOnline (Mei 2024–Mei 2026) dan data ERA5 Reanalysis via Open-Meteo API (Jan 2021–Mei 2024). Total 1.958 baris.','accent'),
+        ('2','bi-funnel','Preprocessing','Penggabungan 25 file Excel, interpolasi missing values, normalisasi fitur, dan feature engineering (lag, rolling mean, temporal).','cyan'),
+        ('3','bi-search','EDA','Analisis distribusi, korelasi antar fitur, identifikasi outlier, dan visualisasi tren temporal data kecepatan angin.','warning'),
+        ('4','bi-cpu','Training Model','Pelatihan 5 algoritma: Linear Regression, ANN, LSTM, K-Means, Backpropagation dengan split 70:15:15 berbasis waktu.','success'),
+        ('5','bi-bar-chart','Evaluasi','Perbandingan metrik MAE, RMSE, R², MAPE, dan Silhouette Score untuk menentukan model terbaik.','info'),
+        ('6','bi-globe','Deployment','Pengembangan web app Flask dengan integrasi Open-Meteo API, lalu deploy ke hosting publik dengan domain .my.id.','danger'),
+      ] %}
+      <div class="method-step">
+        <div class="method-num text-{{ color }}">{{ num }}</div>
+        <div class="method-icon text-{{ color }}"><i class="bi {{ icon }}"></i></div>
+        <div class="method-title">{{ title }}</div>
+        <div class="method-desc">{{ desc }}</div>
+      </div>
+      {% if not loop.last %}
+      <div class="method-arrow"><i class="bi bi-arrow-right text-muted"></i></div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Sumber Data & Referensi -->
+<div class="card-dark mt-3 fade-in mb-2">
+  <div class="card-dark-header">
+    <h6 class="mb-0"><i class="bi bi-link-45deg me-2 text-accent"></i>Sumber Data & Referensi API</h6>
+  </div>
+  <div class="card-dark-body">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="fw-600 small mb-2"><i class="bi bi-database me-1 text-accent"></i>Sumber Dataset</div>
+        <div class="d-flex flex-column gap-2" style="font-size:0.82rem">
+          <div>
+            <a href="https://dataonline.bmkg.go.id" target="_blank" class="text-accent text-decoration-none fw-500">
+              <i class="bi bi-box-arrow-up-right me-1"></i>dataonline.bmkg.go.id
+            </a>
+            <div class="text-muted" style="font-size:0.75rem">BMKG DataOnline — Dataset historis harian stasiun iklim seluruh Indonesia</div>
+          </div>
+          <div>
+            <a href="https://www.bmkg.go.id" target="_blank" class="text-accent text-decoration-none fw-500">
+              <i class="bi bi-box-arrow-up-right me-1"></i>bmkg.go.id
+            </a>
+            <div class="text-muted" style="font-size:0.75rem">Badan Meteorologi, Klimatologi, dan Geofisika — Portal resmi BMKG</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="fw-600 small mb-2"><i class="bi bi-cloud-download me-1 text-cyan"></i>API Cuaca (Prediksi Real-time)</div>
+        <div class="d-flex flex-column gap-2" style="font-size:0.82rem">
+          <div>
+            <a href="https://open-meteo.com" target="_blank" class="text-accent text-decoration-none fw-500">
+              <i class="bi bi-box-arrow-up-right me-1"></i>open-meteo.com
+            </a>
+            <div class="text-muted" style="font-size:0.75rem">Open-Meteo — API cuaca gratis, tanpa API key, data historis sejak 1940 & prakiraan 16 hari ke depan</div>
+          </div>
+          <div>
+            <a href="https://archive-api.open-meteo.com" target="_blank" class="text-accent text-decoration-none fw-500">
+              <i class="bi bi-box-arrow-up-right me-1"></i>archive-api.open-meteo.com
+            </a>
+            <div class="text-muted" style="font-size:0.75rem">Endpoint arsip historis Open-Meteo — digunakan untuk tanggal di luar rentang dataset BMKG</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,520 @@
+{% extends "base.html" %}
+{% block title %}Prediksi{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h2><i class="bi bi-magic me-2 text-accent"></i>Prediksi Kecepatan Angin</h2>
+  <p>Prediksi FF_AVG dari <strong>semua 4 model sekaligus</strong>. Pilih mode: input tanggal otomatis atau input manual lengkap.</p>
+</div>
+
+<div class="row g-3">
+
+  <!-- ═══ KIRI: INPUT ═══ -->
+  <div class="col-lg-4 fade-in">
+    <div class="card-dark">
+      <div class="card-dark-header">
+        <h6 class="mb-0"><i class="bi bi-sliders me-2 text-accent"></i>Input Prediksi</h6>
+      </div>
+      <div class="card-dark-body">
+
+        <!-- Mode tabs -->
+        <div class="d-flex gap-2 mb-3">
+          <button class="tab-mode-btn active" id="btnModeDate" onclick="switchMode('date')">
+            <i class="bi bi-calendar3 me-1"></i>by Tanggal
+          </button>
+          <button class="tab-mode-btn" id="btnModeManual" onclick="switchMode('manual')">
+            <i class="bi bi-pencil-square me-1"></i>Input Manual
+          </button>
+        </div>
+
+        <!-- ── MODE DATE ────────────────── -->
+        <div id="panelDate">
+          <label class="form-label fw-500 small">Pilih Tanggal</label>
+          <input type="date" id="inputDate" class="form-control bg-dark border-secondary text-light mb-2">
+
+          <div class="info-ref-box mb-3">
+            <i class="bi bi-lightbulb me-1 text-success"></i>
+            <strong class="text-success">Mode Mudah:</strong> sistem otomatis mengambil data observasi untuk tanggal ini dari dataset BMKG atau Open-Meteo API, lalu menjalankan prediksi semua model.
+            <div class="mt-2 pt-2 border-top border-secondary" style="font-size:0.72rem;color:var(--text-muted)">
+              <div><i class="bi bi-database me-1 text-accent"></i><strong class="text-light">Dataset BMKG:</strong> 1 Jan 2021 – 12 Mei 2026</div>
+              <div class="mt-1"><i class="bi bi-cloud-download me-1 text-cyan"></i><strong class="text-light">Open-Meteo API:</strong> tanggal historis sejak 1940 & prakiraan 16 hari ke depan</div>
+            </div>
+          </div>
+          <button class="btn btn-accent w-100 fw-600" id="btnPredDate" onclick="predictByDate()">
+            <i class="bi bi-magic me-2"></i>Prediksi Otomatis
+          </button>
+        </div>
+
+        <!-- ── MODE MANUAL ──────────────── -->
+        <div id="panelManual" class="d-none">
+          <div class="row g-2">
+            <div class="col-12"><div class="input-section-label"><i class="bi bi-calendar3 me-1"></i>Tanggal (auto-fill temporal)</div></div>
+            <div class="col-12">
+              <input type="date" id="inputTanggalManual" class="form-control form-control-sm bg-dark border-secondary text-light">
+            </div>
+
+            <div class="col-12 mt-1"><div class="input-section-label"><i class="bi bi-thermometer-sun me-1"></i>Suhu (°C)</div></div>
+            <div class="col-4">
+              <label class="form-label small mb-0">TN min</label>
+              <input type="number" step="0.1" id="inp_TN" class="form-control form-control-sm bg-dark border-secondary text-light" value="{{ defaults.TN|default(24) }}">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-0">TX maks</label>
+              <input type="number" step="0.1" id="inp_TX" class="form-control form-control-sm bg-dark border-secondary text-light" value="{{ defaults.TX|default(32) }}">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-0">TAVG</label>
+              <input type="number" step="0.1" id="inp_TAVG" class="form-control form-control-sm bg-dark border-secondary text-light" value="{{ defaults.TAVG|default(27) }}">
+            </div>
+
+            <div class="col-12 mt-1"><div class="input-section-label"><i class="bi bi-droplet me-1"></i>Kelembaban & Hujan</div></div>
+            <div class="col-6">
+              <label class="form-label small mb-0">RH_AVG (%)</label>
+              <input type="number" step="0.1" id="inp_RH_AVG" class="form-control form-control-sm bg-dark border-secondary text-light" value="{{ defaults.RH_AVG|default(80) }}">
+            </div>
+            <div class="col-6">
+              <label class="form-label small mb-0">RR (mm)</label>
+              <input type="number" step="0.1" min="0" id="inp_RR" class="form-control form-control-sm bg-dark border-secondary text-light" value="{{ defaults.RR|default(0) }}">
+            </div>
+
+            <div class="col-12 mt-1"><div class="input-section-label"><i class="bi bi-wind me-1"></i>Angin & Matahari</div></div>
+            <div class="col-4">
+              <label class="form-label small mb-0">SS (jam)</label>
+              <input type="number" step="0.1" min="0" max="12" id="inp_SS" class="form-control form-control-sm bg-dark border-secondary text-light" value="{{ defaults.SS|default(5) }}">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-0">FF_X (m/s)</label>
+              <input type="number" step="0.1" min="0" id="inp_FF_X" class="form-control form-control-sm bg-dark border-secondary text-light" value="{{ defaults.FF_X|default(8) }}">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-0">DDD_X (°)</label>
+              <input type="number" step="1" min="0" max="360" id="inp_DDD_X" class="form-control form-control-sm bg-dark border-secondary text-light" value="{{ defaults.DDD_X|default(180) }}">
+            </div>
+
+            <div class="col-12 mt-1"><div class="input-section-label"><i class="bi bi-calendar3 me-1"></i>Temporal</div></div>
+            <div class="col-6">
+              <label class="form-label small mb-0">Day of Year</label>
+              <input type="number" min="1" max="366" id="inp_day_of_year" class="form-control form-control-sm bg-dark border-secondary text-light" value="{{ defaults.day_of_year|default(180) }}">
+            </div>
+            <div class="col-6">
+              <label class="form-label small mb-0">Month</label>
+              <input type="number" min="1" max="12" id="inp_month" class="form-control form-control-sm bg-dark border-secondary text-light" value="{{ defaults.month|default(6) }}">
+            </div>
+
+            <div class="col-12 mt-1">
+              <div class="input-section-label"><i class="bi bi-clock-history me-1"></i>Lag FF_AVG <span class="text-muted fw-400" style="text-transform:none;letter-spacing:0;font-size:0.68rem">(angin hari sebelumnya)</span></div>
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-0">Lag-1</label>
+              <input type="number" step="0.1" min="0" id="inp_FF_AVG_lag1" class="form-control form-control-sm bg-dark border-secondary text-light" value="{{ defaults.FF_AVG_lag1|default(2) }}">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-0">Lag-7</label>
+              <input type="number" step="0.1" min="0" id="inp_FF_AVG_lag7" class="form-control form-control-sm bg-dark border-secondary text-light" value="{{ defaults.FF_AVG_lag7|default(2) }}">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-0">Roll-7</label>
+              <input type="number" step="0.1" min="0" id="inp_FF_AVG_roll7" class="form-control form-control-sm bg-dark border-secondary text-light" value="{{ defaults.FF_AVG_roll7|default(2) }}">
+            </div>
+          </div>
+
+          <!-- Ref sumber data -->
+          <div class="info-ref-box mt-3">
+            <div class="fw-600 small text-success mb-1"><i class="bi bi-database me-1"></i>Sumber Data Terbaru</div>
+            <div style="font-size:0.75rem;color:var(--text-muted)">
+              <a href="https://dataonline.bmkg.go.id/home" target="_blank" class="text-accent text-decoration-none d-block mb-1">
+                <i class="bi bi-box-arrow-up-right me-1"></i>dataonline.bmkg.go.id — BMKG DataOnline
+              </a>
+              <a href="https://www.bmkg.go.id/cuaca/prakiraan-cuaca.bmkg" target="_blank" class="text-accent text-decoration-none d-block">
+                <i class="bi bi-box-arrow-up-right me-1"></i>bmkg.go.id — Prakiraan Cuaca Resmi
+              </a>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-accent flex-fill fw-600" id="btnPredManual" onclick="predictManual()">
+              <i class="bi bi-magic me-2"></i>Prediksi Semua Model
+            </button>
+            <button class="btn btn-outline-secondary" onclick="resetManual()"><i class="bi bi-arrow-counterclockwise"></i></button>
+          </div>
+        </div>
+
+        <div id="formError" class="alert alert-danger mt-2 d-none p-2 small mb-0"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ KANAN: HASIL ═══ -->
+  <div class="col-lg-8">
+
+    <!-- Placeholder -->
+    <div id="resultPlaceholder" class="card-dark text-center py-5 fade-in">
+      <div style="font-size:3.5rem;opacity:0.2"><i class="bi bi-wind"></i></div>
+      <h6 class="mt-3 text-muted">Belum ada prediksi</h6>
+      <p class="text-muted small mb-0">Pilih mode dan klik tombol <strong>Prediksi</strong> untuk memulai</p>
+    </div>
+
+    <!-- Hasil (tersembunyi sampai prediksi dijalankan) -->
+    <div id="resultWrap" class="d-none">
+
+      <!-- Info sumber data -->
+      <div id="sourceInfoBox" class="d-none mb-3">
+        <div class="info-ref-box d-flex align-items-start gap-2">
+          <i class="bi bi-info-circle-fill text-success mt-1 flex-shrink-0"></i>
+          <div id="sourceInfoText" style="font-size:0.82rem"></div>
+        </div>
+      </div>
+
+      <!-- Ringkasan + Gauge + 4 Model Cards dalam satu row -->
+      <div class="row g-3 mb-3">
+        <!-- Gauge + Summary -->
+        <div class="col-12 col-md-5 fade-in">
+          <div class="card-dark h-100">
+            <div class="card-dark-header d-flex justify-content-between align-items-center">
+              <h6 class="mb-0"><i class="bi bi-stars me-2 text-warning"></i>Ensemble</h6>
+              <span class="text-muted" style="font-size:0.72rem" id="tsPill"></span>
+            </div>
+            <div class="card-dark-body text-center">
+              <div class="gauge-wrap" style="display:block;width:fit-content;margin:0 auto">
+                <canvas id="gaugeCanvas" width="200" height="130" style="max-width:100%"></canvas>
+                <div class="gauge-center">
+                  <div class="gauge-val" id="gaugeVal">—</div>
+                  <div class="gauge-unit">m/s (rata-rata)</div>
+                </div>
+              </div>
+              <div id="ensembleCatPill" class="mt-2"></div>
+              <div class="row g-2 mt-2 text-start" style="font-size:0.78rem">
+                <div class="col-6">
+                  <div class="text-muted" style="font-size:0.7rem">Skala Beaufort</div>
+                  <div class="fw-600" id="beaufortLabel">—</div>
+                </div>
+                <div class="col-6">
+                  <div class="text-muted" style="font-size:0.7rem">Model Terbaik</div>
+                  <div class="fw-600 text-accent" id="bestModelLabel">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4 Model Results -->
+        <div class="col-12 col-md-7 fade-in">
+          <div class="card-dark h-100">
+            <div class="card-dark-header">
+              <h6 class="mb-0"><i class="bi bi-bar-chart me-2 text-cyan"></i>Hasil Tiap Model</h6>
+              <small class="text-muted">Prediksi FF_AVG dari 4 algoritma ML</small>
+            </div>
+            <div class="card-dark-body">
+              <div class="row g-2" id="modelResultCards"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bar chart perbandingan -->
+      <div class="card-dark mb-3 fade-in">
+        <div class="card-dark-header">
+          <h6 class="mb-0"><i class="bi bi-bar-chart-horizontal me-2 text-accent"></i>Perbandingan Prediksi Antar Model</h6>
+        </div>
+        <div class="card-dark-body">
+          <div class="chart-container" style="height:160px">
+            <canvas id="allModelsBar"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interpretasi & Rekomendasi -->
+      <div class="card-dark fade-in">
+        <div class="card-dark-header">
+          <h6 class="mb-0"><i class="bi bi-lightbulb me-2 text-warning"></i>Interpretasi & Rekomendasi</h6>
+        </div>
+        <div class="card-dark-body" id="interpretDetail"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const FEATURES = ['TN','TX','TAVG','RH_AVG','RR','SS','FF_X','DDD_X',
+                  'day_of_year','month','FF_AVG_lag1','FF_AVG_lag7','FF_AVG_roll7',
+                  'time_index'];
+// time_index = hari sejak 2021-01-01 (auto-hitung, tidak ditampilkan ke user)
+const DATASET_START = new Date('2021-01-01');
+function calcTimeIndex(dateStr) {
+  const d = dateStr ? new Date(dateStr) : new Date();
+  return Math.floor((d - DATASET_START) / (1000*60*60*24));
+}
+const MODEL_ORDER  = ['linear_regression','ann','lstm','backprop'];
+const MODEL_LABELS = {linear_regression:'Linear Regression',ann:'ANN',lstm:'RNN/LSTM',backprop:'Backpropagation'};
+const MODEL_ICONS  = {linear_regression:'bi-graph-up-arrow',ann:'bi-cpu',lstm:'bi-arrow-repeat',backprop:'bi-layers'};
+const COLORS       = ['#0ea5e9','#8b5cf6','#06b6d4','#f59e0b'];
+
+let allModelsBarChart = null;
+
+// ── Mode Switch ───────────────────────────────────────────────
+function switchMode(mode) {
+  ['date','manual'].forEach(m => {
+    document.getElementById('panel'+m.charAt(0).toUpperCase()+m.slice(1)).classList.toggle('d-none', m!==mode);
+    document.getElementById('btnMode'+m.charAt(0).toUpperCase()+m.slice(1)).classList.toggle('active', m===mode);
+  });
+}
+
+// Auto-fill temporal from date
+document.getElementById('inputTanggalManual').addEventListener('change', function() {
+  const d = new Date(this.value);
+  if (!isNaN(d)) {
+    document.getElementById('inp_day_of_year').value = getDayOfYear(d);
+    document.getElementById('inp_month').value = d.getMonth()+1;
+  }
+});
+
+// Set today as default
+const today = new Date().toISOString().split('T')[0];
+document.getElementById('inputDate').value = today;
+document.getElementById('inputTanggalManual').value = today;
+
+// ── Predict by Date ───────────────────────────────────────────
+async function predictByDate() {
+  const date  = document.getElementById('inputDate').value;
+  const errEl = document.getElementById('formError');
+  if (!date) { errEl.textContent='Pilih tanggal terlebih dahulu'; errEl.classList.remove('d-none'); return; }
+  errEl.classList.add('d-none');
+
+  const btn = document.getElementById('btnPredDate');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Memproses...';
+
+  try {
+    const res  = await fetch('/api/predict-by-date',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date})});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error||'Prediksi gagal');
+    renderResults(data);
+    showToast('Prediksi berhasil!','success');
+  } catch(e) {
+    errEl.textContent=e.message; errEl.classList.remove('d-none');
+    showToast(e.message,'danger');
+  } finally {
+    btn.disabled=false;
+    btn.innerHTML='<i class="bi bi-magic me-2"></i>Prediksi Otomatis';
+  }
+}
+
+// ── Predict Manual ────────────────────────────────────────────
+function getManualVals() {
+  const vals={},errs=[];
+  const MANUAL_FEATURES = FEATURES.filter(f => f !== 'time_index');
+  MANUAL_FEATURES.forEach(f=>{const el=document.getElementById('inp_'+f);if(!el){errs.push(f);return;}const v=parseFloat(el.value);if(isNaN(v))errs.push(f);else vals[f]=v;});
+  // Auto-hitung time_index dari tanggal yang dipilih
+  const tanggal = document.getElementById('inputTanggalManual') ? document.getElementById('inputTanggalManual').value : null;
+  vals['time_index'] = calcTimeIndex(tanggal);
+  return {vals,errs};
+}
+function resetManual() {
+  const MANUAL_FEATURES = FEATURES.filter(f => f !== 'time_index');
+  MANUAL_FEATURES.forEach(f=>{const el=document.getElementById('inp_'+f);if(el)el.value='';}); 
+  resetResult();
+}
+async function predictManual() {
+  const {vals,errs}=getManualVals();
+  const errEl=document.getElementById('formError');
+  if(errs.length){errEl.textContent='Nilai tidak valid: '+errs.join(', ');errEl.classList.remove('d-none');return;}
+  errEl.classList.add('d-none');
+  const btn=document.getElementById('btnPredManual');
+  btn.disabled=true; btn.innerHTML='<span class="spinner-border spinner-border-sm me-2"></span>Memproses...';
+  try {
+    const res=await fetch('/api/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(vals)});
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||'Gagal');
+    document.getElementById('sourceInfoBox').classList.add('d-none');
+    renderResults(data);
+    showToast('Prediksi semua model selesai!','success');
+  } catch(e){errEl.textContent=e.message;errEl.classList.remove('d-none');showToast(e.message,'danger');}
+  finally{btn.disabled=false;btn.innerHTML='<i class="bi bi-magic me-2"></i>Prediksi Semua Model';}
+}
+
+function resetResult() {
+  document.getElementById('resultPlaceholder').classList.remove('d-none');
+  document.getElementById('resultWrap').classList.add('d-none');
+  document.getElementById('formError').classList.add('d-none');
+}
+
+// ── Render Results ────────────────────────────────────────────
+function renderResults(data) {
+  document.getElementById('resultPlaceholder').classList.add('d-none');
+  document.getElementById('resultWrap').classList.remove('d-none');
+
+  const ensemble = data.ensemble;
+  const cat      = data.ensemble_cat || windCategory(ensemble||0);
+  const best     = data.best_model;
+
+  // Source info box
+  const di = data.date_info;
+  if (di) {
+    const sib = document.getElementById('sourceInfoBox');
+    sib.classList.remove('d-none');
+    let txt='';
+    const srcMap = {
+      dataset_bmkg:
+        `<i class="bi bi-database-check me-1 text-success"></i><strong>Data ditemukan</strong> di dataset BMKG lokal untuk tanggal <strong>${di.tanggal}</strong>.`,
+      open_meteo:
+        `<i class="bi bi-cloud-download me-1 text-info"></i><strong>Data diambil dari Open-Meteo Historical Weather API</strong> untuk tanggal <strong>${di.tanggal}</strong>. Fitur RH_AVG dan lag diestimasi dari pola historis.`,
+      open_meteo_forecast:
+        `<i class="bi bi-cloud-sun me-1 text-primary"></i><strong>Data diambil dari Open-Meteo Forecast API</strong> untuk tanggal <strong>${di.tanggal}</strong>. Ini adalah data prakiraan (bukan observasi). Fitur RH_AVG dan lag diestimasi dari pola historis.`,
+      nearest_historical:
+        `<i class="bi bi-exclamation-triangle me-1 text-warning"></i><strong>Perhatian:</strong> Open-Meteo API tidak dapat diakses saat ini${di.api_error ? ` (${di.api_error})` : ''}. Prediksi menggunakan data observasi terdekat dari dataset BMKG (<strong>${di.nearest}</strong>) sebagai estimasi. Hasil prediksi mungkin kurang presisi karena kondisi cuaca aktual tanggal <strong>${di.tanggal}</strong> bisa berbeda.`
+    };
+    txt = srcMap[di.source] || `<i class="bi bi-info-circle me-1"></i>Sumber: ${di.source_label||di.source}`;
+    document.getElementById('sourceInfoText').innerHTML = txt;
+  }
+
+  // Timestamp
+  document.getElementById('tsPill').textContent = new Date(data.timestamp).toLocaleTimeString('id-ID');
+
+  // Gauge
+  drawGauge(ensemble||0);
+  document.getElementById('gaugeVal').textContent = ensemble!=null ? ensemble.toFixed(2) : '—';
+
+  // Ensemble category
+  document.getElementById('ensembleCatPill').innerHTML = ensemble!=null
+    ? `<span class="category-pill" style="background:${cat.hex}18;color:${cat.hex};border:1px solid ${cat.hex}40">${cat.icon} ${cat.label}</span>`
+    : '<span class="text-muted small">—</span>';
+
+  // Beaufort & best model
+  document.getElementById('beaufortLabel').textContent = ensemble!=null ? beaufortScale(ensemble) : '—';
+  document.getElementById('bestModelLabel').textContent = (best||'—').replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
+
+  // 4 Model cards — pakai MODEL_ORDER agar urutan selalu konsisten
+  const cardsEl = document.getElementById('modelResultCards');
+  cardsEl.innerHTML = MODEL_ORDER.map((m,i) => {
+    const r = data.models[m]||{};
+    const isBest = m===best;
+    const val  = r.value!=null ? r.value.toFixed(4) : null;
+    const mcat = val ? windCategory(r.value) : null;
+    return `<div class="col-6">
+      <div class="result-model-block ${isBest?'best':''}">
+        ${isBest?'<div style="font-size:0.63rem;color:#22c55e;font-weight:700;margin-bottom:3px">⭐ TERBAIK</div>':''}
+        <div class="d-flex align-items-center gap-1 mb-1">
+          <i class="bi ${MODEL_ICONS[m]}" style="color:${COLORS[i]};font-size:0.9rem"></i>
+          <span class="fw-600" style="font-size:0.76rem;line-height:1.2">${MODEL_LABELS[m]}</span>
+        </div>
+        ${r.available && val
+          ? `<div class="result-val-sm" style="color:${mcat.hex};font-size:clamp(0.85rem,2.5vw,1.1rem)">${val} m/s</div>
+             <div style="font-size:0.68rem;color:${mcat.hex}">${mcat.icon} ${mcat.label}</div>`
+          : `<div class="text-muted" style="font-size:0.7rem;line-height:1.3">${r.error||'Tidak tersedia'}</div>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+
+  // Bar chart
+  const labels = MODEL_ORDER.map(m=>MODEL_LABELS[m]);
+  const values = MODEL_ORDER.map(m=>data.models[m]?.value??0);
+  if (allModelsBarChart) allModelsBarChart.destroy();
+  allModelsBarChart = new Chart(document.getElementById('allModelsBar').getContext('2d'),{
+    type:'bar',
+    data:{labels,datasets:[{label:'FF_AVG (m/s)',data:values,
+      backgroundColor:COLORS.map(c=>c+'33'),borderColor:COLORS,borderWidth:2,borderRadius:6}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.parsed.x.toFixed(4)} m/s`}}},
+      scales:{
+        x:{ticks:{color:'#94a3b8'},grid:{color:'rgba(255,255,255,0.06)'},title:{display:true,text:'m/s',color:'#64748b'}},
+        y:{ticks:{color:'#94a3b8'},grid:{color:'rgba(255,255,255,0.04)'}}
+      }}
+  });
+
+  // Interpretasi
+  renderInterpretation(ensemble, cat);
+}
+
+// ── Interpretasi ──────────────────────────────────────────────
+function renderInterpretation(val, cat) {
+  const el = document.getElementById('interpretDetail');
+  if (!val) { el.innerHTML=''; return; }
+
+  const rekomendasi = {
+    success:[
+      {icon:'bi-check2-circle', text:'Kondisi ideal untuk semua aktivitas outdoor'},
+      {icon:'bi-bicycle',       text:'Bersepeda, jogging, dan olahraga sangat nyaman'},
+      {icon:'bi-cloud-sun',     text:'Pengeringan hasil pertanian sangat baik'},
+      {icon:'bi-airplane',      text:'Penerbangan drone dan layang-layang sangat aman'},
+    ],
+    info:[
+      {icon:'bi-bicycle',   text:'Bersepeda dan jogging tetap nyaman'},
+      {icon:'bi-wind',      text:'Layangan bisa diterbangkan dengan mudah'},
+      {icon:'bi-house',     text:'Aktivitas konstruksi ringan di luar ruangan aman'},
+      {icon:'bi-tree',      text:'Daun bergerak halus, kondisi angin ringan menyegarkan'},
+    ],
+    warning:[
+      {icon:'bi-exclamation-triangle', text:'Hati-hati membawa benda ringan di luar ruangan'},
+      {icon:'bi-cone-striped',         text:'Kegiatan konstruksi di ketinggian perlu pengawasan'},
+      {icon:'bi-x-circle',             text:'Penerbangan drone kecil tidak dianjurkan'},
+      {icon:'bi-tree',                 text:'Ranting kecil dan daun terus bergerak aktif'},
+    ],
+    danger:[
+      {icon:'bi-slash-circle',       text:'Hindari aktivitas di ketinggian — risiko tinggi'},
+      {icon:'bi-cone-striped',       text:'Tunda pekerjaan atap dan konstruksi'},
+      {icon:'bi-x-octagon',          text:'Penerbangan drone dilarang keras'},
+      {icon:'bi-exclamation-octagon',text:'Waspada pohon tumbang dan benda beterbangan'},
+    ]
+  };
+
+  const items = rekomendasi[cat.color]||rekomendasi.info;
+  el.innerHTML=`
+  <div class="row g-3">
+    <div class="col-md-6">
+      <div class="fw-600 small mb-2"><i class="bi bi-speedometer2 me-1 text-accent"></i>Detail Kondisi Angin</div>
+      <div class="row g-2" style="font-size:0.8rem">
+        <div class="col-6"><div class="text-muted" style="font-size:0.7rem">Nilai Prediksi</div><div class="fw-700" style="color:${cat.hex};font-family:'Space Grotesk'">${val.toFixed(4)} m/s</div></div>
+        <div class="col-6"><div class="text-muted" style="font-size:0.7rem">Kategori</div><div class="fw-700" style="color:${cat.hex}">${cat.icon} ${cat.label}</div></div>
+        <div class="col-12"><div class="text-muted" style="font-size:0.7rem">Skala Beaufort</div><div class="fw-600">${beaufortScale(val)}</div></div>
+      </div>
+      <div class="interpretation-box mt-2">
+        <i class="bi bi-quote me-1 text-accent"></i>${cat.desc}
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="fw-600 small mb-2"><i class="bi bi-lightbulb me-1 text-warning"></i>Rekomendasi Aktivitas</div>
+      <div class="d-flex flex-column gap-2">
+        ${items.map(r=>`<div class="d-flex align-items-start gap-2" style="font-size:0.8rem">
+          <i class="bi ${r.icon} flex-shrink-0 mt-1" style="color:${cat.hex}"></i>
+          <span class="text-sub">${r.text}</span>
+        </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Gauge ─────────────────────────────────────────────────────
+function drawGauge(val) {
+  const canvas=document.getElementById('gaugeCanvas');
+  const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height);
+  const cx=canvas.width/2, cy=canvas.height-18, r=72;
+  const pct=Math.min(val/10,1);
+
+  ctx.beginPath(); ctx.arc(cx,cy,r,Math.PI,2*Math.PI);
+  ctx.strokeStyle='rgba(255,255,255,0.07)'; ctx.lineWidth=14; ctx.stroke();
+
+  let color='#22c55e';
+  if(val>=5) color='#ef4444';
+  else if(val>=3) color='#f59e0b';
+  else if(val>=1.5) color='#0ea5e9';
+
+  const fillEnd=Math.PI+pct*Math.PI;
+  const g=ctx.createLinearGradient(cx-r,cy,cx+r,cy);
+  g.addColorStop(0,color); g.addColorStop(1,'#06b6d4');
+  ctx.beginPath(); ctx.arc(cx,cy,r,Math.PI,fillEnd);
+  ctx.strokeStyle=g; ctx.lineWidth=14; ctx.lineCap='round'; ctx.stroke();
+
+  [0,5,10].forEach(v=>{
+    const a=Math.PI+(v/10)*Math.PI;
+    const tx=cx+(r+16)*Math.cos(a), ty=cy+(r+16)*Math.sin(a);
+    ctx.fillStyle='#64748b'; ctx.font='10px Space Grotesk';
+    ctx.textAlign='center'; ctx.fillText(v,tx,ty);
+  });
+}
+</script>
+{% endblock %}

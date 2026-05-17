@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% block title %}Dataset BMKG + ERA5{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2><i class="bi bi-table me-2 text-accent"></i>Dataset Kecepatan Angin Jawa Barat</h2>
+  <p>Data observasi harian gabungan dari dua sumber: <strong>BMKG DataOnline</strong> (Mei 2024 – Mei 2026) dan <strong>ERA5 Reanalysis Open-Meteo</strong> (Jan 2021 – Mei 2024). Total <strong>1.958 baris</strong> data untuk Stasiun Klimatologi Jawa Barat (ID WMO: 96753).</p>
+</div>
+
+<!-- Stats ringkas -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3 fade-in">
+    <div class="stat-card">
+      <div class="stat-icon bg-accent-soft"><i class="bi bi-database text-accent"></i></div>
+      <div class="stat-value">1,958</div>
+      <div class="stat-label">Total Baris Data</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3 fade-in delay-1">
+    <div class="stat-card">
+      <div class="stat-icon bg-cyan-soft"><i class="bi bi-layout-three-columns text-cyan"></i></div>
+      <div class="stat-value">11</div>
+      <div class="stat-label">Kolom Variabel</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3 fade-in delay-2">
+    <div class="stat-card">
+      <div class="stat-icon bg-green-soft"><i class="bi bi-calendar-range text-success"></i></div>
+      <div class="stat-value">5 Thn</div>
+      <div class="stat-label">Jan 2021 – Mei 2026</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3 fade-in delay-3">
+    <div class="stat-card">
+      <div class="stat-icon bg-warn-soft"><i class="bi bi-broadcast text-warning"></i></div>
+      <div class="stat-value">96753</div>
+      <div class="stat-label">ID Stasiun WMO</div>
+    </div>
+  </div>
+</div>
+
+<!-- Badge sumber data -->
+<div class="card-dark mb-3 fade-in">
+  <div class="card-dark-body py-2 px-3">
+    <div class="d-flex flex-wrap gap-3 align-items-center" style="font-size:0.8rem">
+      <div class="fw-600 text-muted">Sumber Data:</div>
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-accent" style="font-size:0.7rem">BMKG</span>
+        <span class="text-light">Open Data BMKG DataOnline</span>
+        <span class="text-muted">· Mei 2024 – Mei 2026 · <em>729 baris observasi langsung</em></span>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge" style="background:#0ea5e9;font-size:0.7rem">ERA5</span>
+        <span class="text-light">Open-Meteo ERA5 Reanalysis (CC BY 4.0)</span>
+        <span class="text-muted">· Jan 2021 – Mei 2024 · <em>1.229 baris</em></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabel kontrol -->
+<div class="card-dark fade-in">
+  <div class="card-dark-header">
+    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <h6 class="mb-0"><i class="bi bi-table me-2 text-accent"></i>Data Observasi Harian</h6>
+        <span class="badge bg-secondary text-light" id="totalBadge">Memuat...</span>
+      </div>
+      <div class="d-flex gap-2 flex-wrap dataset-filter-bar">
+        <!-- Search -->
+        <div class="input-group input-group-sm" style="min-width:150px;width:180px">
+          <span class="input-group-text bg-dark border-secondary text-muted">
+            <i class="bi bi-search"></i>
+          </span>
+          <input type="text" id="searchInput" class="form-control bg-dark border-secondary text-light"
+                 placeholder="Cari tanggal..." oninput="onSearch(this.value)">
+        </div>
+        <!-- Per page -->
+        <select id="perPageSelect" class="form-select form-select-sm bg-dark border-secondary text-light" style="width:90px" onchange="loadData(1)">
+          <option value="25">25</option>
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+        </select>
+        <!-- Sort -->
+        <select id="sortSelect" class="form-select form-select-sm bg-dark border-secondary text-light" style="width:130px" onchange="loadData(1)">
+          <option value="TANGGAL_desc">Terbaru dulu</option>
+          <option value="TANGGAL_asc">Terlama dulu</option>
+          <option value="FF_AVG_desc">FF_AVG ↓</option>
+          <option value="FF_AVG_asc">FF_AVG ↑</option>
+        </select>
+        <a href="/data/bmkg_merged.csv" class="btn btn-sm btn-outline-secondary" download title="Download CSV">
+          <i class="bi bi-download me-1"></i>CSV
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-responsive" style="max-height:520px;overflow-y:auto">
+    <table class="table table-dark table-hover mb-0 dataset-table">
+      <thead>
+        <tr>
+          <th>Tanggal</th>
+          <th>TN (°C)</th>
+          <th>TX (°C)</th>
+          <th>TAVG (°C)</th>
+          <th>RH_AVG (%)</th>
+          <th>RR (mm)</th>
+          <th>SS (jam)</th>
+          <th>FF_X (m/s)</th>
+          <th>DDD_X (°)</th>
+          <th><span class="text-accent">FF_AVG (m/s)</span></th>
+          <th>Arah</th>
+        </tr>
+      </thead>
+      <tbody id="dataTableBody">
+        <tr><td colspan="11" class="text-center py-4">
+          <div class="spinner-border spinner-border-sm text-accent me-2"></div>Memuat data...
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <div class="card-dark-body d-flex justify-content-between align-items-center flex-wrap gap-2 py-2 px-3">
+    <small class="text-muted" id="pageInfo">—</small>
+    <nav><ul class="pagination pagination-sm mb-0 dataset-pagination" id="pagination"></ul></nav>
+  </div>
+</div>
+
+<!-- Keterangan kolom -->
+<div class="card-dark mt-3 fade-in">
+  <div class="card-dark-header">
+    <h6 class="mb-0"><i class="bi bi-info-circle me-2 text-accent"></i>Keterangan Kolom</h6>
+  </div>
+  <div class="card-dark-body">
+    <div class="row g-2" style="font-size:0.8rem">
+      {% for col, desc, unit in [
+        ('TN','Suhu minimum harian','°C'),
+        ('TX','Suhu maksimum harian','°C'),
+        ('TAVG','Suhu rata-rata harian','°C'),
+        ('RH_AVG','Kelembaban relatif rata-rata','%'),
+        ('RR','Curah hujan harian','mm'),
+        ('SS','Lama penyinaran matahari','jam'),
+        ('FF_X','Kecepatan angin maksimum','m/s'),
+        ('DDD_X','Arah angin saat kecepatan maks','derajat'),
+        ('FF_AVG','Kecepatan angin rata-rata (TARGET)','m/s'),
+        ('DDD_CAR','Arah angin kartu (N/S/E/W/C)','—'),
+      ] %}
+      <div class="col-sm-6 col-lg-4">
+        <span class="font-mono text-accent me-1">{{ col }}</span>
+        <span class="text-muted">{{ desc }}</span>
+        <span class="badge bg-secondary ms-1" style="font-size:0.65rem">{{ unit }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="mt-2 pt-2 border-top border-secondary" style="font-size:0.75rem;color:var(--text-muted)">
+      <div class="row g-1">
+        <div class="col-12 col-md-6">
+          <i class="bi bi-geo-alt me-1 text-accent"></i>
+          <strong class="text-light">BMKG:</strong>
+          <a href="https://dataonline.bmkg.go.id" target="_blank" class="text-accent">dataonline.bmkg.go.id</a>
+          · Stasiun Klimatologi Jawa Barat · 6.90°LS / 107.61°BT · 207 mdpl
+        </div>
+        <div class="col-12 col-md-6">
+          <i class="bi bi-cloud me-1" style="color:#0ea5e9"></i>
+          <strong class="text-light">ERA5:</strong>
+          <a href="https://open-meteo.com/en/docs/historical-weather-api" target="_blank" style="color:#0ea5e9">Open-Meteo Historical API</a>
+          · Copernicus ERA5 Reanalysis (ECMWF) · Lisensi CC BY 4.0
+          · <em>Hersbach et al. (2020), doi:10.1002/qj.3803</em>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let searchTimeout = null;
+
+function onSearch(val) {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => loadData(1), 400);
+}
+
+async function loadData(page=1) {
+  currentPage = page;
+  const perPage  = parseInt(document.getElementById('perPageSelect').value);
+  const search   = document.getElementById('searchInput').value;
+  const sortVal  = document.getElementById('sortSelect').value;
+  const [sortBy, order] = sortVal.split('_');
+
+  document.getElementById('dataTableBody').innerHTML =
+    `<tr><td colspan="11" class="text-center py-4">
+       <div class="spinner-border spinner-border-sm text-accent me-2"></div>Memuat...
+     </td></tr>`;
+
+  try {
+    const url  = `/api/dataset?page=${page}&per_page=${perPage}&search=${encodeURIComponent(search)}&sort_by=${sortBy}&order=${order}`;
+    const res  = await fetch(url);
+    const data = await res.json();
+
+    renderTable(data.data);
+    renderPagination(data.total, data.page, data.total_pages, data.per_page);
+    document.getElementById('totalBadge').textContent = `${data.total} baris`;
+    document.getElementById('pageInfo').textContent =
+      `Menampilkan ${(page-1)*perPage+1}–${Math.min(page*perPage, data.total)} dari ${data.total} baris`;
+  } catch(e) {
+    document.getElementById('dataTableBody').innerHTML =
+      `<tr><td colspan="11" class="text-center text-danger py-4">Gagal memuat data: ${e.message}</td></tr>`;
+  }
+}
+
+function ffAvgColor(val) {
+  const v = parseFloat(val);
+  if (isNaN(v)) return '';
+  if (v < 1.5) return '#22c55e';
+  if (v < 3.0) return '#0ea5e9';
+  if (v < 5.0) return '#f59e0b';
+  return '#ef4444';
+}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('dataTableBody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted py-4">Tidak ada data ditemukan</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const color = ffAvgColor(r.FF_AVG);
+    return `<tr>
+      <td class="font-mono">${r.TANGGAL}</td>
+      <td>${r.TN}</td>
+      <td>${r.TX}</td>
+      <td>${r.TAVG}</td>
+      <td>${r.RH_AVG}</td>
+      <td>${r.RR}</td>
+      <td>${r.SS}</td>
+      <td>${r.FF_X}</td>
+      <td>${r.DDD_X}</td>
+      <td class="ff-avg-cell" style="color:${color}">${r.FF_AVG}</td>
+      <td>${r.DDD_CAR}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderPagination(total, page, totalPages, perPage) {
+  const ul = document.getElementById('pagination');
+  if (totalPages <= 1) { ul.innerHTML = ''; return; }
+
+  let html = '';
+  html += `<li class="page-item ${page<=1?'disabled':''}">
+    <a class="page-link" href="#" onclick="loadData(${page-1});return false">‹</a></li>`;
+
+  let start = Math.max(1, page-2), end = Math.min(totalPages, page+2);
+  if (start > 1) { html += `<li class="page-item"><a class="page-link" href="#" onclick="loadData(1);return false">1</a></li>`; if(start>2) html += `<li class="page-item disabled"><span class="page-link">…</span></li>`; }
+  for (let p = start; p <= end; p++) {
+    html += `<li class="page-item ${p===page?'active':''}">
+      <a class="page-link" href="#" onclick="loadData(${p});return false">${p}</a></li>`;
+  }
+  if (end < totalPages) { if(end<totalPages-1) html += `<li class="page-item disabled"><span class="page-link">…</span></li>`; html += `<li class="page-item"><a class="page-link" href="#" onclick="loadData(${totalPages});return false">${totalPages}</a></li>`; }
+  html += `<li class="page-item ${page>=totalPages?'disabled':''}">
+    <a class="page-link" href="#" onclick="loadData(${page+1});return false">›</a></li>`;
+
+  ul.innerHTML = html;
+}
+
+loadData(1);
+</script>
+{% endblock %}

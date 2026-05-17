@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+{% block title %}Komparasi Model{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h2><i class="bi bi-bar-chart-line me-2 text-accent"></i>Komparasi Performa Model</h2>
+  <p>Analisis perbandingan 5 algoritma machine learning berdasarkan metrik evaluasi pada data uji (test set 15%).</p>
+</div>
+
+<!-- Tabel Metrik -->
+<div class="card-dark mb-3 fade-in">
+  <div class="card-dark-header">
+    <h6 class="mb-0"><i class="bi bi-table me-2 text-accent"></i>Tabel Metrik Evaluasi</h6>
+    <small class="text-muted">Data uji: {{ (metrics.linear_regression.MAE if metrics and metrics.linear_regression else '—') }}</small>
+  </div>
+  <div class="card-dark-body p-0">
+    <div class="table-responsive">
+      <table class="table table-dark table-hover mb-0 compare-table">
+        <thead>
+          <tr>
+            <th>Algoritma</th><th>Tipe</th><th>MAE ↓</th><th>RMSE ↓</th><th>R² ↑</th><th>MAPE ↓</th><th>Evaluasi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for key, label, tipe in [
+            ('linear_regression','Linear Regression','Supervised Regression'),
+            ('ann','ANN','Supervised Regression'),
+            ('lstm','RNN/LSTM','Supervised (Sequential)'),
+            ('backprop','Backpropagation','Supervised Regression'),
+          ] %}
+          {% set m = metrics[key] if metrics and key in metrics else {} %}
+          <tr class="{% if metrics and metrics.best_model == key %}table-best{% endif %}">
+            <td class="fw-600">
+              {% if metrics and metrics.best_model == key %}<i class="bi bi-star-fill text-warning me-1"></i>{% endif %}
+              {{ label }}
+            </td>
+            <td><span class="badge bg-secondary">{{ tipe }}</span></td>
+            <td class="font-mono {% if m.MAE is defined %}{% if m.MAE < 0.6 %}text-success{% elif m.MAE < 1 %}text-warning{% else %}text-danger{% endif %}{% endif %}">
+              {{ "%.4f"|format(m.MAE) if m.MAE is defined else '—' }}
+            </td>
+            <td class="font-mono {% if m.RMSE is defined %}{% if m.RMSE < 0.7 %}text-success{% elif m.RMSE < 1 %}text-warning{% else %}text-danger{% endif %}{% endif %}">
+              {{ "%.4f"|format(m.RMSE) if m.RMSE is defined else '—' }}
+            </td>
+            <td class="font-mono {% if m.R2 is defined %}{% if m.R2 > 0.4 %}text-success{% elif m.R2 > 0 %}text-warning{% else %}text-danger{% endif %}{% endif %}">
+              {{ "%.4f"|format(m.R2) if m.R2 is defined else '—' }}
+            </td>
+            <td class="font-mono text-muted">
+              {{ "%.2f"|format(m.MAPE)+'%' if (m.MAPE is defined and m.MAPE is not none) else '—' }}
+            </td>
+            <td>
+              {% if metrics and metrics.best_model == key %}
+              <span class="badge bg-success">Terbaik</span>
+              {% elif m.R2 is defined and m.R2 > 0 %}
+              <span class="badge bg-secondary">Normal</span>
+              {% elif m.R2 is defined %}
+              <span class="badge bg-danger">Perlu Tuning</span>
+              {% else %}
+              <span class="badge bg-secondary">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          <!-- K-Means -->
+          <tr>
+            <td class="fw-600"><i class="bi bi-diagram-2 text-cyan me-1"></i>K-Means Clustering</td>
+            <td><span class="badge bg-info text-dark">Unsupervised</span></td>
+            <td class="text-muted" colspan="3">—</td>
+            <td class="text-muted">—</td>
+            <td>
+              {% if metrics and metrics.kmeans %}
+              <span class="badge bg-info text-dark">Sil: {{ "%.4f"|format(metrics.kmeans.Silhouette) }}</span>
+              {% endif %}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="mt-2 px-1" style="font-size:0.78rem; color: var(--text-muted);">
+        <span class="me-2">ⓘ</span>
+        <strong>— (strip)</strong> pada kolom <strong>MAPE</strong> untuk Linear Regression, ANN, dan Backpropagation berarti MAPE tidak dikalkulasi karena metrik ini hanya relevan untuk model sekuensial (LSTM). Selain itu, dataset kecepatan angin mengandung nilai aktual = 0 m/s sehingga pembagian pada rumus MAPE (|aktual − prediksi| / aktual) akan menghasilkan nilai tak hingga (∞) yang menyesatkan.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bar Charts -->
+<div class="row g-3 mb-3">
+  <div class="col-md-4 fade-in">
+    <div class="card-dark h-100">
+      <div class="card-dark-header"><h6 class="mb-0"><i class="bi bi-bar-chart me-1 text-accent"></i>MAE <small class="text-muted">(kecil = baik)</small></h6></div>
+      <div class="card-dark-body">
+        <div class="chart-container" style="height:200px"><canvas id="maeChart"></canvas></div>
+        <div class="mt-2 pt-2 border-top border-secondary" style="font-size:0.74rem;color:var(--text-muted);line-height:1.5">
+          MAE mengukur rata-rata selisih absolut prediksi terhadap nilai aktual (m/s). Semakin kecil nilainya semakin akurat. Model dengan MAE &lt; 0.6 m/s tergolong baik untuk prediksi kecepatan angin harian.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 fade-in delay-1">
+    <div class="card-dark h-100">
+      <div class="card-dark-header"><h6 class="mb-0"><i class="bi bi-bar-chart me-1 text-cyan"></i>RMSE <small class="text-muted">(kecil = baik)</small></h6></div>
+      <div class="card-dark-body">
+        <div class="chart-container" style="height:200px"><canvas id="rmseChart"></canvas></div>
+        <div class="mt-2 pt-2 border-top border-secondary" style="font-size:0.74rem;color:var(--text-muted);line-height:1.5">
+          RMSE lebih sensitif terhadap error besar karena nilai error dikuadratkan sebelum dirata-rata. Cocok untuk mendeteksi model yang sering meleset jauh pada hari-hari dengan angin ekstrem.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 fade-in delay-2">
+    <div class="card-dark h-100">
+      <div class="card-dark-header"><h6 class="mb-0"><i class="bi bi-bar-chart me-1 text-success"></i>R² Score <small class="text-muted">(besar = baik)</small></h6></div>
+      <div class="card-dark-body">
+        <div class="chart-container" style="height:200px"><canvas id="r2Chart"></canvas></div>
+        <div class="mt-2 pt-2 border-top border-secondary" style="font-size:0.74rem;color:var(--text-muted);line-height:1.5">
+          R² menunjukkan seberapa baik model menjelaskan variansi data. Nilai 1.0 sempurna, 0 berarti sama dengan prediksi mean, negatif berarti lebih buruk dari sekadar menebak rata-rata.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Loss Curves -->
+<div class="section-header mt-3 mb-3">
+  <h4><i class="bi bi-activity me-2 text-accent"></i>Training Loss Curves</h4>
+  <small class="text-muted">Progres konvergensi model selama pelatihan</small>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-4 fade-in">
+    <div class="card-dark">
+      <div class="card-dark-header"><h6 class="mb-0"><i class="bi bi-cpu me-1 text-accent"></i>ANN Loss</h6></div>
+      <div class="card-dark-body">
+        <div class="chart-container" style="height:180px"><canvas id="annLossChart"></canvas></div>
+        <div class="mt-2 pt-2 border-top border-secondary" style="font-size:0.74rem;color:var(--text-muted);line-height:1.5">
+          Kurva Train Loss dan Val Loss yang konvergen berdekatan menunjukkan model belajar dengan baik tanpa overfitting. Gap besar antara keduanya mengindikasikan model terlalu menghafal data training.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 fade-in delay-1">
+    <div class="card-dark">
+      <div class="card-dark-header"><h6 class="mb-0"><i class="bi bi-arrow-repeat me-1 text-cyan"></i>LSTM Loss</h6></div>
+      <div class="card-dark-body">
+        <div class="chart-container" style="height:180px"><canvas id="lstmLossChart"></canvas></div>
+        <div class="mt-2 pt-2 border-top border-secondary" style="font-size:0.74rem;color:var(--text-muted);line-height:1.5">
+          LSTM memproses data sebagai sequence 7 hari. Kurva yang tidak stabil menunjukkan model kesulitan menemukan pola temporal yang konsisten, umumnya karena data time-series angin sangat fluktuatif.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 fade-in delay-2">
+    <div class="card-dark">
+      <div class="card-dark-header"><h6 class="mb-0"><i class="bi bi-layers me-1 text-warning"></i>Backprop Loss</h6></div>
+      <div class="card-dark-body">
+        <div class="chart-container" style="height:180px"><canvas id="bpLossChart"></canvas></div>
+        <div class="mt-2 pt-2 border-top border-secondary" style="font-size:0.74rem;color:var(--text-muted);line-height:1.5">
+          Backpropagation manual diimplementasikan dengan NumPy murni. Konvergensi lebih lambat dibanding TensorFlow/Keras karena tidak ada optimasi GPU. Gradient clipping digunakan untuk menstabilkan training.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Interpretasi metrik & best model -->
+<div class="row g-3 mb-3">
+  <div class="col-md-6 fade-in">
+    <div class="card-dark h-100">
+      <div class="card-dark-header"><h6 class="mb-0"><i class="bi bi-info-circle me-1 text-warning"></i>Interpretasi Metrik</h6></div>
+      <div class="card-dark-body">
+        <div class="me-item"><span class="me-badge bg-accent">MAE</span>Mean Absolute Error — rata-rata selisih absolut antara nilai prediksi dan aktual dalam satuan m/s.</div>
+        <div class="me-item"><span class="me-badge bg-cyan">RMSE</span>Root Mean Squared Error — lebih sensitif terhadap error besar karena mengkuadratkan selisih terlebih dahulu.</div>
+        <div class="me-item"><span class="me-badge bg-success">R²</span>Koefisien Determinasi — proporsi variansi yang dijelaskan model. Nilai 1.0 = sempurna, negatif = buruk dari baseline.</div>
+        <div class="me-item border-0"><span class="me-badge bg-warning text-dark">MAPE</span>Mean Absolute Percentage Error — error relatif dalam persen. Hanya dikalkulasi untuk LSTM karena dataset angin mengandung nilai aktual 0 m/s yang menyebabkan MAPE tak hingga (∞) pada model lain. LSTM menggunakan subset data yang nilainya ≥ 0.1 m/s.</div>
+        {% if metrics and metrics.best_model %}
+        <div class="alert-accent p-2 rounded mt-3 small">
+          <i class="bi bi-trophy-fill text-warning me-1"></i>
+          <strong>Model terbaik:</strong> {{ metrics.best_model.replace('_',' ').title() }}
+          dengan R² = {{ "%.4f"|format(metrics[metrics.best_model].R2) if metrics[metrics.best_model] else '—' }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6 fade-in delay-1">
+    <div class="card-dark h-100">
+      <div class="card-dark-header"><h6 class="mb-0"><i class="bi bi-chat-quote me-1 text-accent"></i>Catatan Hasil</h6></div>
+      <div class="card-dark-body" style="font-size:0.82rem">
+        <p class="text-sub">Nilai R² yang rendah atau negatif pada beberapa model menunjukkan bahwa kecepatan angin harian di stasiun Klimatologi Jawa Barat memiliki variabilitas tinggi yang sulit diprediksi dari fitur cuaca saja.</p>
+        <p class="text-sub mb-0">Dataset gabungan BMKG + ERA5 kini berjumlah 1.958 baris (Jan 2021 – Mei 2026). Dengan penambahan data ERA5, model deep learning seperti ANN mendapat lebih banyak sampel untuk belajar pola non-linier. Linear Regression tetap menjadi baseline yang kuat untuk data tabular cuaca karena hubungan antara fitur meteorologi dan kecepatan angin memiliki komponen linier yang signifikan.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Penjelasan Algoritma (accordion, 1 paragraf tiap algo) -->
+<div class="section-header mb-3">
+  <h4><i class="bi bi-book me-2 text-accent"></i>Penjelasan Algoritma</h4>
+</div>
+<div class="card-dark mb-3 fade-in">
+  <div class="card-dark-body p-0">
+    <div class="accordion accordion-dark" id="algoAccordion">
+
+      {% set algos = [
+        ('lr','Linear Regression','bi-graph-up-arrow','accent',
+         'Linear Regression adalah algoritma regresi yang memodelkan hubungan linier antara variabel input (fitur cuaca seperti suhu, kelembaban, dan penyinaran matahari) dengan variabel target (kecepatan angin FF_AVG). Model bekerja dengan mencari koefisien bobot optimal melalui metode Ordinary Least Squares (OLS), yaitu meminimalkan jumlah kuadrat residual antara prediksi dan nilai aktual. Meskipun sederhana, Linear Regression sering menjadi baseline yang kuat dan dapat diinterpretasikan karena setiap koefisien menunjukkan seberapa besar pengaruh fitur tersebut terhadap prediksi angin.',
+         ['Interpretasi koefisien mudah dipahami','Stabil pada dataset kecil dan bebas overfitting','Komputasi cepat, tidak perlu GPU'],
+         ['Tidak menangkap pola non-linier','Sensitif terhadap outlier dan multikolinieritas','Kurang cocok jika hubungan fitur bersifat kompleks']),
+
+        ('ann','Artificial Neural Network (ANN)','bi-cpu','cyan',
+         'Artificial Neural Network (ANN) adalah jaringan saraf tiruan yang terdiri dari lapisan-lapisan neuron yang saling terhubung. Pada proyek ini digunakan arsitektur Dense multilayer: input (13 fitur) → Dense(256, ReLU) → BatchNormalization → Dropout(0.25) → Dense(128, ReLU) → Dense(64, ReLU) → Dense(32, ReLU) → output linier (1 neuron). Model dilatih menggunakan optimizer Adam dengan Early Stopping dan ReduceLROnPlateau untuk mencegah overfitting. ANN mampu memodelkan hubungan non-linier yang kompleks antar fitur cuaca yang tidak bisa ditangkap oleh regresi linier biasa.',
+         ['Mampu menangkap pola non-linier kompleks','Fleksibel dalam pemilihan arsitektur','Performa meningkat signifikan dengan data lebih banyak'],
+         ['Memerlukan tuning hyperparameter ekstensif','Rentan overfitting pada dataset kecil','Interpretasi model sulit (black box)']),
+
+        ('lstm','RNN/LSTM','bi-arrow-clockwise','warning',
+         'Long Short-Term Memory (LSTM) adalah varian dari Recurrent Neural Network (RNN) yang dirancang khusus untuk memproses data sekuensial dengan dependensi jangka panjang. LSTM menggunakan tiga mekanisme gate: input gate (menentukan informasi baru yang disimpan), forget gate (menentukan informasi lama yang dihapus), dan output gate (menentukan output yang dihasilkan). Pada proyek ini, data diformat menjadi sequence 7 hari sebelumnya sebagai konteks temporal, dengan arsitektur LSTM(64, return_sequences) → Dropout(0.2) → LSTM(32) → Dense(1). LSTM merupakan pilihan tepat untuk data time series seperti pengamatan cuaca harian yang memiliki pola musiman.',
+         ['Ideal untuk data time series dan musiman','Mempertahankan konteks dari hari-hari sebelumnya','Mampu belajar pola jangka panjang'],
+         ['Memerlukan lebih banyak data untuk konvergen','Waktu training lebih lama dibanding ANN Dense','Rentan overfitting pada dataset kecil seperti 729 baris']),
+
+        ('bp','Backpropagation Manual','bi-layers','warning',
+         'Backpropagation adalah algoritma pelatihan jaringan saraf yang menghitung gradien error secara mundur dari layer output ke layer input menggunakan chain rule diferensial. Pada proyek ini, jaringan diimplementasikan dari nol menggunakan NumPy murni tanpa library deep learning, dengan arsitektur: input(13) → Dense(128, ReLU) → Dense(64, ReLU) → Dense(32, ReLU) → output(1, linear). Setiap iterasi terdiri dari forward pass (menghitung prediksi), kalkulasi loss (MSE), backward pass (menghitung gradien), dan weight update (gradient descent). Implementasi manual ini bertujuan untuk memahami cara kerja backpropagation secara mendalam.',
+         ['Pemahaman mendalam mekanisme backpropagation','Kontrol penuh terhadap setiap komponen jaringan','Tidak bergantung pada library deep learning eksternal'],
+         ['Performa lebih lambat dibanding TensorFlow/Keras','Tidak ada optimasi GPU, hanya CPU','Konvergensi lebih lama karena implementasi dasar']),
+
+        ('km','K-Means Clustering','bi-diagram-2','success',
+         'K-Means adalah algoritma unsupervised learning yang membagi data ke dalam K cluster berdasarkan kemiripan jarak Euclidean antar data point. Algoritma bekerja secara iteratif: menentukan K centroid secara acak, menugaskan setiap data ke centroid terdekat, lalu memperbarui centroid berdasarkan rata-rata anggota cluster hingga konvergen. Pada proyek ini, K-Means diterapkan pada 5 fitur angin (FF_AVG, FF_X, RH_AVG, TAVG, RR) untuk mengelompokkan kondisi iklim harian menjadi 4 kategori: Angin Tenang, Ringan, Sedang, dan Kencang. Elbow Method digunakan untuk menentukan K optimal.',
+         ['Tidak memerlukan label data (unsupervised)','Hasil cluster mudah diinterpretasikan secara semantik','Komputasi efisien pada dataset tabular'],
+         ['Sensitif terhadap inisialisasi centroid awal','Harus menentukan nilai K sebelum training','Kurang optimal jika bentuk cluster tidak sferis']),
+      ] %}
+
+      {% for id, name, icon, color, desc, pros, cons in algos %}
+      <div class="accordion-item bg-transparent border-0 border-bottom border-secondary">
+        <h2 class="accordion-header">
+          <button class="accordion-button collapsed bg-transparent text-light" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#acc_{{ id }}">
+            <i class="bi {{ icon }} me-2 text-{{ color }}"></i>{{ name }}
+            {% if metrics and metrics[id if id != 'km' else ''] is defined and id != 'km' %}
+            <span class="badge ms-2 bg-secondary" style="font-size:0.65rem">
+              R² {{ "%.4f"|format(metrics[id].R2) if metrics and id in metrics and metrics[id].R2 is defined else '—' }}
+            </span>
+            {% endif %}
+          </button>
+        </h2>
+        <div id="acc_{{ id }}" class="accordion-collapse collapse">
+          <div class="accordion-body pt-2">
+            <p class="text-sub mb-3" style="font-size:0.83rem;line-height:1.7">{{ desc }}</p>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <div class="pros-cons-box pros">
+                  <div class="fw-600 small mb-2 text-success"><i class="bi bi-check-circle me-1"></i>Kelebihan</div>
+                  {% for p in pros %}<div class="small text-muted mb-1">• {{ p }}</div>{% endfor %}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="pros-cons-box cons">
+                  <div class="fw-600 small mb-2 text-danger"><i class="bi bi-x-circle me-1"></i>Kekurangan</div>
+                  {% for c in cons %}<div class="small text-muted mb-1">• {{ c }}</div>{% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const metrics   = {{ metrics | tojson }};
+const annHist   = {{ ann_hist  | tojson }};
+const lstmHist  = {{ lstm_hist | tojson }};
+const bpHist    = {{ bp_hist   | tojson }};
+const LABELS    = ['Linear Regression','ANN','RNN/LSTM','Backpropagation'];
+const KEYS      = ['linear_regression','ann','lstm','backprop'];
+const COLORS    = ['#0ea5e9','#8b5cf6','#06b6d4','#f59e0b'];
+
+function makeBar(id, label, vals, colors) {
+  const ctx = document.getElementById(id).getContext('2d');
+  new Chart(ctx, {
+    type:'bar',
+    data:{labels:LABELS,datasets:[{label,data:vals,backgroundColor:colors.map(c=>c+'33'),borderColor:colors,borderWidth:2,borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'}},
+              y:{ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'rgba(255,255,255,0.07)'}}}}
+  });
+}
+
+function makeLoss(id, hist, color) {
+  if (!hist||!hist.loss) return;
+  const ctx=document.getElementById(id).getContext('2d');
+  const ep=hist.loss.map((_,i)=>i+1);
+  new Chart(ctx,{type:'line',data:{labels:ep,datasets:[
+    {label:'Train',data:hist.loss,borderColor:color,backgroundColor:color+'18',fill:true,tension:0.4,pointRadius:0,borderWidth:2},
+    {label:'Val',data:hist.val_loss,borderColor:'#94a3b8',backgroundColor:'transparent',borderDash:[4,3],tension:0.4,pointRadius:0,borderWidth:1.5}
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{color:'#94a3b8',font:{size:10}}}},
+    scales:{x:{ticks:{color:'#64748b',maxTicksLimit:6,font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},
+            y:{ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(255,255,255,0.07)'}}}
+  }});
+}
+
+makeBar('maeChart',  'MAE',  KEYS.map(k=>metrics[k]?.MAE  ??0), COLORS);
+makeBar('rmseChart', 'RMSE', KEYS.map(k=>metrics[k]?.RMSE ??0), COLORS);
+makeBar('r2Chart',   'R²',   KEYS.map(k=>metrics[k]?.R2   ??0), COLORS);
+makeLoss('annLossChart',  annHist,  '#0ea5e9');
+makeLoss('lstmLossChart', lstmHist, '#06b6d4');
+makeLoss('bpLossChart',   bpHist,   '#f59e0b');
+</script>
+{% endblock %}

@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+{% block title %}Clustering{% endblock %}
+
+{% block content %}
+<div class="w-100">
+
+  <div class="page-header mb-5 fade-in">
+    <h2><i class="bi bi-diagram-3 me-2 text-accent"></i>K-Means Clustering</h2>
+    <p class="text-muted">Segmentasi kondisi angin menggunakan algoritma K-Means Clustering tanpa label (unsupervised learning). Data dikelompokkan berdasarkan kemiripan karakteristik angin.</p>
+    <div class="alert alert-info d-flex align-items-start gap-2 py-2 px-3 mb-0" style="font-size:0.82rem;background:rgba(14,165,233,0.08);border-color:rgba(14,165,233,0.3);color:#94a3b8">
+      <i class="bi bi-info-circle-fill text-info mt-1"></i>
+      <span>Jumlah cluster (<strong>K={{ kmeans_metrics.K }}</strong>) dipilih otomatis berdasarkan <strong>Silhouette Score tertinggi</strong> dari rentang K=2–10.
+      Data Stasiun Klimatologi Jawa Barat selama 5 tahun menunjukkan bahwa angin dengan kecepatan di atas 5 m/s terlalu jarang dan tersebar untuk membentuk cluster tersendiri yang statisik bermakna — sehingga K={{ kmeans_metrics.K }} adalah jumlah optimal yang jujur terhadap data.</span>
+    </div>
+  </div>
+
+  <!-- ═══ STATS CLUSTER ═══ -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3 fade-in">
+      <div class="stat-card">
+        <div class="stat-icon bg-accent-soft"><i class="bi bi-diagram-2 text-accent"></i></div>
+        <div class="stat-value">{{ kmeans_metrics.K if kmeans_metrics else 4 }}</div>
+        <div class="stat-label">Jumlah Cluster (K)</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 fade-in delay-1">
+      <div class="stat-card">
+        <div class="stat-icon bg-cyan-soft"><i class="bi bi-speedometer text-cyan"></i></div>
+        <div class="stat-value">
+          {% if kmeans_metrics and kmeans_metrics.Silhouette is defined %}
+            {{ "%.4f"|format(kmeans_metrics.Silhouette) }}
+          {% else %}—{% endif %}
+        </div>
+        <div class="stat-label">Silhouette Score</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 fade-in delay-2">
+      <div class="stat-card">
+        <div class="stat-icon bg-warn-soft"><i class="bi bi-bar-chart text-warning"></i></div>
+        <div class="stat-value">
+          {% if kmeans_metrics and kmeans_metrics.Inertia is defined %}
+            {{ "%.1f"|format(kmeans_metrics.Inertia) }}
+          {% else %}—{% endif %}
+        </div>
+        <div class="stat-label">Inertia (SSE)</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 fade-in delay-3">
+      <div class="stat-card">
+        <div class="stat-icon bg-green-soft"><i class="bi bi-layers text-success"></i></div>
+        <div class="stat-value">5</div>
+        <div class="stat-label">Fitur Clustering</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ LABEL CLUSTER ═══ -->
+  <div class="row g-3 mb-4" id="clusterLabelCards">
+    <!-- Cards dirender dinamis via JS berdasarkan label_map dari API -->
+  </div>
+
+  <!-- ═══ CHARTS ROW 1 ═══ -->
+  <div class="row g-4 mb-4">
+    <!-- Elbow Method -->
+    <div class="col-md-6 fade-in">
+      <div class="card-dark h-100">
+        <div class="card-dark-header">
+          <h5 class="mb-0"><i class="bi bi-graph-down me-2 text-accent"></i>Elbow Method</h5>
+          <small class="text-muted">Menentukan K optimal</small>
+        </div>
+        <div class="card-dark-body">
+          <div class="chart-container" style="height:240px">
+            <canvas id="elbowChart"></canvas>
+          </div>
+          <div class="mt-2 pt-2 border-top border-secondary" style="font-size:0.74rem;color:var(--text-muted);line-height:1.6">
+            <i class="bi bi-info-circle me-1 text-accent"></i>
+            Grafik menunjukkan nilai inertia (total jarak dalam cluster) untuk setiap nilai K. K optimal dipilih pada titik "siku" — di mana penurunan inertia mulai melambat secara signifikan. Menambah K lebih dari titik ini hanya memberi keuntungan kecil namun kompleksitas meningkat.
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Silhouette per K -->
+    <div class="col-md-6 fade-in delay-1">
+      <div class="card-dark h-100">
+        <div class="card-dark-header">
+          <h5 class="mb-0"><i class="bi bi-activity me-2 text-cyan"></i>Silhouette Score per K</h5>
+          <small class="text-muted">Kualitas cluster (semakin tinggi semakin baik)</small>
+        </div>
+        <div class="card-dark-body">
+          <div class="chart-container" style="height:240px">
+            <canvas id="silhouetteChart"></canvas>
+          </div>
+          <div class="mt-2 pt-2 border-top border-secondary" style="font-size:0.74rem;color:var(--text-muted);line-height:1.6">
+            <i class="bi bi-info-circle me-1 text-cyan"></i>
+            Silhouette Score mengukur seberapa mirip suatu data point dengan clusternya sendiri dibanding cluster lain. Nilai berkisar -1 hingga 1 — semakin mendekati 1 semakin baik kualitas pemisahan cluster. K yang menghasilkan silhouette tertinggi dipilih sebagai K optimal.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ CHARTS ROW 2 ═══ -->
+  <div class="row g-4 mb-4">
+    <!-- Scatter Plot -->
+    <div class="col-md-8 fade-in">
+      <div class="card-dark h-100">
+        <div class="card-dark-header">
+          <h5 class="mb-0"><i class="bi bi-scatter-chart me-2 text-warning"></i>Scatter Plot Cluster</h5>
+          <small class="text-muted">FF_AVG vs FF_X, warna per cluster</small>
+        </div>
+        <div class="card-dark-body">
+          <div class="chart-container" style="height:300px">
+            <canvas id="scatterChart"></canvas>
+          </div>
+          <div class="mt-2 pt-2 border-top border-secondary" style="font-size:0.74rem;color:var(--text-muted);line-height:1.6">
+            <i class="bi bi-info-circle me-1 text-accent"></i>
+            Setiap titik mewakili satu hari observasi. Sumbu X adalah kecepatan angin rata-rata (FF_AVG) dan sumbu Y adalah kecepatan angin maksimum (FF_X). Cluster yang terpisah jelas menunjukkan K-Means berhasil membedakan kondisi angin — titik-titik yang mengelompok rapat berarti hari-hari tersebut memiliki karakteristik angin yang serupa.
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Donut Chart -->
+    <div class="col-md-4 fade-in delay-1">
+      <div class="card-dark h-100">
+        <div class="card-dark-header">
+          <h5 class="mb-0"><i class="bi bi-pie-chart me-2 text-success"></i>Distribusi Cluster</h5>
+        </div>
+        <div class="card-dark-body d-flex flex-column align-items-center justify-content-center">
+          <div class="chart-container cluster-chart-pie" style="height:220px;max-width:220px;width:100%;margin:0 auto">
+            <canvas id="donutChart"></canvas>
+          </div>
+          <div id="donutLegend" class="mt-2 w-100"></div>
+          <div class="mt-2 pt-2 border-top border-secondary w-100" style="font-size:0.74rem;color:var(--text-muted);line-height:1.6">
+            <i class="bi bi-pie-chart me-1 text-success"></i>
+            Proporsi hari per kategori angin sepanjang 5 tahun data. Dominansi kategori tertentu mencerminkan karakteristik iklim angin khas Stasiun Klimatologi Jawa Barat.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TABEL STATISTIK CLUSTER ═══ -->
+  <div class="card-dark fade-in">
+    <div class="card-dark-header">
+      <h5 class="mb-0"><i class="bi bi-table me-2 text-accent"></i>Statistik per Cluster</h5>
+    </div>
+    <div class="card-dark-body p-0">
+      <div class="table-responsive">
+        <table class="table table-dark table-hover mb-0" id="clusterStatsTable">
+          <thead>
+            <tr>
+              <th>Cluster</th>
+              <th>Label</th>
+              <th>Jumlah Data</th>
+              <th>FF_AVG Rata-rata (m/s)</th>
+              <th>FF_X Rata-rata (m/s)</th>
+              <th>RH_AVG Rata-rata (%)</th>
+              <th>TAVG Rata-rata (°C)</th>
+            </tr>
+          </thead>
+          <tbody id="clusterStatsTbody">
+            <tr><td colspan="7" class="text-center text-muted py-4">
+              <div class="spinner-border spinner-border-sm me-2"></div>Memuat data...
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="px-3 py-2 border-top border-secondary" style="font-size:0.74rem;color:var(--text-muted);line-height:1.6">
+        <i class="bi bi-info-circle me-1 text-accent"></i>
+        Tabel ini merangkum karakteristik rata-rata setiap cluster. Label (Angin Tenang, Ringan, Sedang, Kencang) ditetapkan otomatis berdasarkan urutan FF_AVG rata-rata dari kecil ke besar. Perhatikan juga korelasi antara kelembaban (RH_AVG) dan kecepatan angin — angin lebih kencang umumnya terjadi saat kondisi lebih kering.
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const kmMeta = {{ kmeans_metrics | tojson }};
+// CLUSTER_LABELS dan CLUSTER_COLORS dibangun dinamis dari kmeans_metrics
+const ALL_COLORS = ['#22c55e','#0ea5e9','#f59e0b','#ef4444','#a855f7','#ec4899'];
+const ALL_ICONS  = {'Angin Tenang':'🌤','Angin Ringan':'🌬','Angin Sedang':'💨','Angin Kencang':'🌪','Angin Sangat Kencang':'🌪','Angin Badai':'⛈'};
+const ALL_DESCS  = {
+  'Angin Tenang':       'FF_AVG rendah. Kondisi cuaca sangat tenang, nyaman untuk semua aktivitas.',
+  'Angin Ringan':       'FF_AVG sedang-rendah. Angin ringan terasa di wajah, daun bergerak halus.',
+  'Angin Sedang':       'FF_AVG sedang. Dedaunan dan ranting kecil bergerak, bendera berkibar.',
+  'Angin Kencang':      'FF_AVG tinggi. Angin terasa kuat, cabang pohon bergerak.',
+  'Angin Sangat Kencang': 'FF_AVG sangat tinggi. Berjalan menentang angin terasa berat.',
+  'Angin Badai':        'FF_AVG ekstrem. Waspadai kerusakan struktural.'
+};
+
+// Bangun dari label_map: urutkan berdasarkan nilai FF_AVG rata-rata (urutan label)
+let CLUSTER_LABELS, CLUSTER_COLORS;
+if (kmMeta && kmMeta.label_map) {
+  // label_map: {cluster_id: label_name}, sudah diurutkan dari kecil ke besar saat training
+  const entries = Object.entries(kmMeta.label_map).sort((a,b) => {
+    // Urut berdasarkan posisi label dalam ALL_DESCS keys
+    const order = Object.keys(ALL_DESCS);
+    return order.indexOf(a[1]) - order.indexOf(b[1]);
+  });
+  CLUSTER_LABELS = entries.map(e => e[1]);
+  CLUSTER_COLORS = CLUSTER_LABELS.map((_,i) => ALL_COLORS[i] || ALL_COLORS[ALL_COLORS.length-1]);
+  // Render label cards dinamis
+  const cardContainer = document.getElementById('clusterLabelCards');
+  if (cardContainer) {
+    cardContainer.innerHTML = CLUSTER_LABELS.map((lbl, i) => `
+      <div class="col-6 col-lg-3 fade-in">
+        <div class="cluster-label-card" style="border-color:${CLUSTER_COLORS[i]}40;background:${CLUSTER_COLORS[i]}0d">
+          <div class="cluster-emoji">${ALL_ICONS[lbl] || '💨'}</div>
+          <div class="cluster-name" style="color:${CLUSTER_COLORS[i]}">${lbl}</div>
+          <div class="cluster-desc">${ALL_DESCS[lbl] || ''}</div>
+        </div>
+      </div>`).join('');
+  }
+} else {
+  CLUSTER_LABELS = ['Angin Tenang','Angin Ringan','Angin Sedang','Angin Kencang'];
+  CLUSTER_COLORS = ['#22c55e','#0ea5e9','#f59e0b','#ef4444'];
+}
+
+// ── Elbow Chart ─────────────────────────────────────────────
+if (kmMeta && kmMeta.elbow) {
+  const ctx = document.getElementById('elbowChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: kmMeta.elbow.k,
+      datasets: [{
+        label: 'Inertia',
+        data: kmMeta.elbow.inertia,
+        borderColor: '#0ea5e9',
+        backgroundColor: 'rgba(14,165,233,0.12)',
+        fill: true, tension: 0.4, pointRadius: 5,
+        pointBackgroundColor: '#0ea5e9', borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        annotation: {},
+        tooltip: { callbacks: { title: (i) => `K = ${i[0].label}` }}
+      },
+      scales: {
+        x: { title:{ display:true, text:'Jumlah Cluster (K)', color:'#64748b' },
+             ticks:{ color:'#94a3b8' }, grid:{ color:'rgba(255,255,255,0.05)' }},
+        y: { title:{ display:true, text:'Inertia (SSE)', color:'#64748b' },
+             ticks:{ color:'#94a3b8' }, grid:{ color:'rgba(255,255,255,0.07)' }}
+      }
+    }
+  });
+}
+
+// ── Silhouette Chart ────────────────────────────────────────
+if (kmMeta && kmMeta.elbow && kmMeta.elbow.silhouette) {
+  const ctx = document.getElementById('silhouetteChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: kmMeta.elbow.k,
+      datasets: [{
+        label: 'Silhouette Score',
+        data: kmMeta.elbow.silhouette,
+        backgroundColor: kmMeta.elbow.k.map(k =>
+          k === kmMeta.K ? 'rgba(14,165,233,0.6)' : 'rgba(14,165,233,0.2)'),
+        borderColor: kmMeta.elbow.k.map(k =>
+          k === kmMeta.K ? '#0ea5e9' : 'rgba(14,165,233,0.4)'),
+        borderWidth: 2, borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }},
+      scales: {
+        x: { title:{ display:true, text:'K', color:'#64748b' },
+             ticks:{ color:'#94a3b8' }, grid:{ color:'rgba(255,255,255,0.05)' }},
+        y: { ticks:{ color:'#94a3b8' }, grid:{ color:'rgba(255,255,255,0.07)' }}
+      }
+    }
+  });
+}
+
+// ── Cluster Data dari API ───────────────────────────────────
+async function loadClusterData() {
+  try {
+    const res  = await fetch('/api/cluster-data');
+    const data = await res.json();
+
+    // Kelompokkan per label
+    const groups = {};
+    CLUSTER_LABELS.forEach(l => groups[l] = []);
+    data.forEach(d => {
+      if (groups[d.cluster_label]) groups[d.cluster_label].push(d);
+    });
+
+    // ── Scatter Chart ──────────────────────────────────────
+    const scatterCtx = document.getElementById('scatterChart').getContext('2d');
+    const scatterDatasets = CLUSTER_LABELS
+      .map((label, i) => ({
+        label,
+        data: (groups[label]||[]).map(d => ({ x: d.FF_AVG, y: d.FF_X })),
+        backgroundColor: CLUSTER_COLORS[i] + '88',
+        borderColor: CLUSTER_COLORS[i],
+        pointRadius: 5,
+        pointHoverRadius: 7
+      }))
+      .filter(ds => ds.data.length > 0);
+
+    new Chart(scatterCtx, {
+      type: 'scatter',
+      data: { datasets: scatterDatasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color:'#94a3b8', font:{family:'Poppins',size:11} }}
+        },
+        scales: {
+          x: { title:{ display:true, text:'FF_AVG (m/s)', color:'#64748b' },
+               ticks:{ color:'#94a3b8' }, grid:{ color:'rgba(255,255,255,0.05)' }},
+          y: { title:{ display:true, text:'FF_X (m/s)', color:'#64748b' },
+               ticks:{ color:'#94a3b8' }, grid:{ color:'rgba(255,255,255,0.07)' }}
+        }
+      }
+    });
+
+    // ── Donut Chart ────────────────────────────────────────
+    const counts = CLUSTER_LABELS.map(l => groups[l] ? groups[l].length : 0);
+    // Filter hanya cluster yang benar-benar ada datanya
+    const activeLabels = CLUSTER_LABELS.filter((_,i) => counts[i] > 0);
+    const activeCounts = counts.filter(c => c > 0);
+    const activeColors = CLUSTER_COLORS.filter((_,i) => counts[i] > 0);
+    const donutCtx = document.getElementById('donutChart').getContext('2d');
+    new Chart(donutCtx, {
+      type: 'doughnut',
+      data: {
+        labels: activeLabels,
+        datasets: [{
+          data: activeCounts,
+          backgroundColor: activeColors.map(c => c + 'bb'),
+          borderColor: activeColors,
+          borderWidth: 2,
+          hoverOffset: 8
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: {
+            label: (ctx) => ` ${ctx.label}: ${ctx.parsed} data (${((ctx.parsed/data.length)*100).toFixed(1)}%)`
+          }}
+        },
+        cutout: '65%'
+      }
+    });
+
+    // Legend manual donut
+    const legendEl = document.getElementById('donutLegend');
+    legendEl.innerHTML = CLUSTER_LABELS.map((l, i) =>
+      counts[i] > 0 ? `<div class="d-flex justify-content-between align-items-center mb-1">
+        <span class="small"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${CLUSTER_COLORS[i]};margin-right:6px"></span>${l}</span>
+        <span class="small text-muted">${counts[i]} data (${((counts[i]/data.length)*100).toFixed(1)}%)</span>
+      </div>` : ''
+    ).join('');
+
+    // ── Tabel Statistik ────────────────────────────────────
+    const tbody = document.getElementById('clusterStatsTbody');
+    const icons = ['🌤','🌬','💨','🌪'];
+    tbody.innerHTML = CLUSTER_LABELS.map((label, i) => {
+      const grp = groups[label];
+      if (!grp.length) return '';
+      const avg = field => (grp.reduce((s, d) => s + (d[field] || 0), 0) / grp.length).toFixed(2);
+      return `<tr>
+        <td><span class="badge rounded-pill" style="background:${CLUSTER_COLORS[i]}22;color:${CLUSTER_COLORS[i]};border:1px solid ${CLUSTER_COLORS[i]}44">Cluster ${i}</span></td>
+        <td class="fw-600">${icons[i]} ${label}</td>
+        <td>${grp.length}</td>
+        <td class="font-mono">${avg('FF_AVG')}</td>
+        <td class="font-mono">${avg('FF_X')}</td>
+        <td class="font-mono">${avg('RH_AVG')}</td>
+        <td class="font-mono">${avg('TAVG')}</td>
+      </tr>`;
+    }).join('');
+
+  } catch(e) {
+    console.error('Gagal load cluster data:', e);
+    document.getElementById('clusterStatsTbody').innerHTML =
+      `<tr><td colspan="7" class="text-center text-danger py-3">Gagal memuat data cluster</td></tr>`;
+  }
+}
+
+loadClusterData();
+</script>
+{% endblock %}

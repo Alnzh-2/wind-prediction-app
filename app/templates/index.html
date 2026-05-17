@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<!-- Hero -->
+<section class="hero-section px-0 mx-n3" style="margin-top:-24px;padding:0 24px">
+  <div class="py-4 px-2">
+    <div class="row align-items-center g-4">
+      <div class="col-lg-7 fade-in">
+        <div class="badge-pill mb-3">
+          <i class="bi bi-broadcast me-1"></i>BMKG Stasiun Klimatologi Jawa Barat · WMO 96753
+        </div>
+        <h1 class="hero-title">Prediksi Kecepatan<br><span class="text-gradient">Angin Harian</span></h1>
+        <p class="hero-sub mt-2">Platform machine learning 5 algoritma AI untuk prediksi FF_AVG harian dari data observasi BMKG Jawa Barat. Linear Regression, ANN, LSTM, K-Means, dan Backpropagation.</p>
+        <div class="d-flex gap-2 mt-3 flex-wrap">
+          <a href="/predict" class="btn btn-accent"><i class="bi bi-magic me-2"></i>Mulai Prediksi</a>
+          <a href="/compare" class="btn btn-outline-light btn-sm px-3"><i class="bi bi-bar-chart me-1"></i>Komparasi Model</a>
+        </div>
+      </div>
+      <div class="col-lg-5 fade-in delay-1">
+        <div class="hero-visual">
+          <div class="wind-rings">
+            <div class="wind-ring r1"></div>
+            <div class="wind-ring r2"></div>
+            <div class="wind-ring r3"></div>
+          </div>
+          <div class="wind-icon-center">
+            <i class="bi bi-wind"></i>
+            <div class="wind-speed-label" id="heroWindSpeed">— m/s</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Stats Cards -->
+<div class="row g-3 mt-1">
+  <div class="col-6 col-lg-3 fade-in">
+    <div class="stat-card">
+      <div class="stat-icon bg-accent-soft"><i class="bi bi-database text-accent"></i></div>
+      <div class="stat-value">1,958</div>
+      <div class="stat-label">Total Data Harian</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3 fade-in delay-1">
+    <div class="stat-card">
+      <div class="stat-icon bg-cyan-soft"><i class="bi bi-calendar-range text-cyan"></i></div>
+      <div class="stat-value">5 Thn</div>
+      <div class="stat-label">Jan 2021 – Mei 2026</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3 fade-in delay-2">
+    <div class="stat-card">
+      <div class="stat-icon bg-green-soft"><i class="bi bi-cpu text-success"></i></div>
+      <div class="stat-value" id="statR2">
+        {% if metrics and metrics.best_model and metrics[metrics.best_model] %}
+          {{ "%.3f"|format(metrics[metrics.best_model].R2) }}
+        {% else %}—{% endif %}
+      </div>
+      <div class="stat-label">R² Best Model</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3 fade-in delay-3">
+    <div class="stat-card">
+      <div class="stat-icon bg-warn-soft"><i class="bi bi-layers text-warning"></i></div>
+      <div class="stat-value">5</div>
+      <div class="stat-label">Algoritma ML</div>
+    </div>
+  </div>
+</div>
+
+<!-- Chart + Forecast -->
+<div class="row g-3 mt-1">
+  <div class="col-lg-8 fade-in">
+    <div class="card-dark h-100">
+      <div class="card-dark-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+          <h6 class="mb-0"><i class="bi bi-graph-up me-2 text-accent"></i>Tren FF_AVG Historis</h6>
+          <small class="text-muted">Kecepatan angin rata-rata harian (m/s)</small>
+        </div>
+        <select class="form-select form-select-sm w-auto bg-transparent border-secondary text-light" id="histRange">
+          <option value="30">30 hari</option>
+          <option value="60" selected>60 hari</option>
+          <option value="90">90 hari</option>
+          <option value="180">180 hari</option>
+        </select>
+      </div>
+      <div class="card-dark-body">
+        <div class="chart-container" style="height:270px">
+          <canvas id="historicalChart"></canvas>
+        </div>
+        <!-- Penjelasan grafik -->
+        <div class="mt-3 px-1" style="border-top:1px solid rgba(255,255,255,0.07);padding-top:0.75rem">
+          <div class="row g-2 text-muted" style="font-size:0.76rem">
+            <div class="col-12 col-md-6">
+              <div class="d-flex align-items-start gap-2">
+                <span style="color:#38bdf8;font-size:1rem;margin-top:1px">━</span>
+                <div>
+                  <strong class="text-light">FF_AVG (m/s)</strong> — kecepatan angin rata-rata harian yang diukur di Stasiun Klimatologi Jawa Barat (WMO 96753, 207 mdpl). Nilai ini menjadi variabel target (<em>output</em>) seluruh model prediksi.
+                </div>
+              </div>
+            </div>
+            <div class="col-12 col-md-6">
+              <div class="d-flex align-items-start gap-2">
+                <span style="color:#38bdf8;font-size:1rem;margin-top:1px;opacity:0.5">╌╌</span>
+                <div>
+                  <strong class="text-light">FF_X (m/s)</strong> — kecepatan angin maksimum harian. Digunakan sebagai fitur input model karena mencerminkan variabilitas angin pada hari yang sama.
+                </div>
+              </div>
+            </div>
+            <div class="col-12 mt-1">
+              <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-info-circle text-accent mt-1" style="font-size:0.8rem"></i>
+                <div>
+                  Grafik menampilkan <span id="chartRangeLabel">60</span> hari terakhir dari dataset gabungan BMKG + ERA5. Pola dominan menunjukkan angin cenderung lebih kencang di bulan-bulan transisi (maret–mei dan september–november) seiring pergeseran massa udara monsun. Nilai FF_AVG berkisar antara
+                  <strong class="text-light" id="chartMin">—</strong> hingga
+                  <strong class="text-light" id="chartMax">—</strong> m/s pada rentang yang ditampilkan.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4 fade-in delay-1">
+    <div class="card-dark h-100">
+      <div class="card-dark-header">
+        <h6 class="mb-0"><i class="bi bi-cloud-sun me-2 text-cyan"></i>Prakiraan Cuaca</h6>
+        <small class="text-muted">Data terkini (cache 1 jam)</small>
+      </div>
+      <div class="card-dark-body p-3" id="forecastWidget">
+        <div class="text-center py-3">
+          <div class="spinner-border spinner-border-sm text-accent"></div>
+          <div class="mt-2 text-muted small">Memuat data...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Model Cards -->
+<div class="section-header mt-4">
+  <h4><i class="bi bi-trophy me-2 text-warning"></i>Perbandingan Model</h4>
+  <a href="/compare" class="btn btn-sm btn-outline-accent">Detail →</a>
+</div>
+<div class="row g-3">
+  {% for key, label, icon in [
+    ('linear_regression','Linear Regression','bi-graph-up-arrow'),
+    ('ann','ANN','bi-cpu'),
+    ('lstm','RNN/LSTM','bi-arrow-repeat'),
+    ('backprop','Backpropagation','bi-layers'),
+  ] %}
+  <div class="col-6 col-lg-3 fade-in">
+    <div class="model-card {% if metrics and metrics.best_model == key %}model-card-best{% endif %}">
+      {% if metrics and metrics.best_model == key %}<div class="best-badge">⭐ Terbaik</div>{% endif %}
+      <div class="model-icon"><i class="bi {{ icon }}"></i></div>
+      <div class="model-name">{{ label }}</div>
+      {% if metrics and metrics[key] %}
+        <div class="model-metric">R² <span class="metric-val">{{ "%.4f"|format(metrics[key].R2) if metrics[key].R2 is defined else '—' }}</span></div>
+        <div class="model-metric">RMSE <span class="metric-val">{{ "%.4f"|format(metrics[key].RMSE) if metrics[key].RMSE is defined else '—' }}</span></div>
+      {% else %}<div class="text-muted small mt-2">Belum dilatih</div>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Algoritma -->
+<div class="section-header mt-4">
+  <h4><i class="bi bi-grid-3x3-gap me-2 text-accent"></i>Algoritma yang Digunakan</h4>
+</div>
+<div class="row g-3 mb-3">
+  {% for name, icon, color, desc in [
+    ('Linear Regression','bi-graph-up-arrow','accent','Model baseline regresi linier untuk memodelkan hubungan linear antara fitur cuaca dan kecepatan angin.'),
+    ('ANN','bi-cpu-fill','cyan','Jaringan saraf tiruan multilayer Dense yang menangkap pola non-linier pada data tabular cuaca harian.'),
+    ('RNN/LSTM','bi-arrow-clockwise','warning','Long Short-Term Memory untuk pemodelan sekuensial, memanfaatkan dependensi temporal data angin.'),
+    ('K-Means','bi-diagram-2-fill','success','Pengelompokan unsupervised: Angin Tenang, Ringan, Sedang, dan Kencang berdasarkan fitur angin.'),
+    ('Backpropagation','bi-layers-fill','danger','Implementasi manual backpropagation menggunakan NumPy murni, tanpa library deep learning.'),
+  ] %}
+  <div class="col-md-6 col-lg-4 col-xl fade-in">
+    <div class="algo-card">
+      <div class="algo-icon text-{{ color }}"><i class="bi {{ icon }}"></i></div>
+      <div class="algo-name">{{ name }}</div>
+      <p class="algo-desc">{{ desc }}</p>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let histChart = null;
+
+async function loadHistorical(n=60) {
+  try {
+    const res = await fetch(`/api/historical?n=${n}`);
+    const data = await res.json();
+    if (histChart) histChart.destroy();
+    const ctx = document.getElementById('historicalChart').getContext('2d');
+    histChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: data.map(d=>d.TANGGAL),
+        datasets: [
+          { label:'FF_AVG (m/s)', data:data.map(d=>d.FF_AVG),
+            borderColor:'#0ea5e9', backgroundColor:'rgba(14,165,233,0.08)',
+            fill:true, tension:0.4, pointRadius:2, borderWidth:2 },
+          { label:'FF_X Maks', data:data.map(d=>d.FF_X),
+            borderColor:'#06b6d4', backgroundColor:'transparent',
+            borderDash:[4,3], tension:0.4, pointRadius:0, borderWidth:1.5 }
+        ]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins: { legend:{ labels:{ color:'#94a3b8' }}, tooltip:{ mode:'index', intersect:false }},
+        scales: {
+          x:{ ticks:{ color:'#64748b', maxTicksLimit:8 }, grid:{ color:'rgba(255,255,255,0.05)' }},
+          y:{ ticks:{ color:'#64748b' }, grid:{ color:'rgba(255,255,255,0.07)' },
+              title:{ display:true, text:'m/s', color:'#64748b' }}
+        }
+      }
+    });
+    if (data.length) {
+      document.getElementById('heroWindSpeed').textContent = data[data.length-1].FF_AVG.toFixed(1)+' m/s';
+      // Update penjelasan grafik
+      const vals = data.map(d=>d.FF_AVG).filter(v=>v!=null && !isNaN(v));
+      if (vals.length) {
+        document.getElementById('chartMin').textContent = Math.min(...vals).toFixed(2);
+        document.getElementById('chartMax').textContent = Math.max(...vals).toFixed(2);
+      }
+      document.getElementById('chartRangeLabel').textContent = n;
+    }
+  } catch(e) { console.error(e); }
+}
+
+document.getElementById('histRange').addEventListener('change', e => loadHistorical(+e.target.value));
+
+async function loadForecast() {
+  const el = document.getElementById('forecastWidget');
+  try {
+    const res  = await fetch('/api/weather-forecast');
+    const data = await res.json();
+    if (!data.forecasts || data.forecasts.length === 0) throw new Error(data.error || 'Tidak ada data');
+
+    const dayNames = ['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
+    let html = '';
+    if (data.error) {
+      html += `<div class="alert p-2 mb-2" style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:8px;font-size:0.73rem;color:#f59e0b">
+        <i class="bi bi-info-circle me-1"></i>${data.error}</div>`;
+    }
+    html += `<div class="mb-2"><small class="text-muted"><i class="bi bi-pin-map me-1"></i>${data.station}</small></div>`;
+    data.forecasts.slice(0,5).forEach(f => {
+      const d   = new Date(f.date);
+      const cat = f.wind_max ? windCategory(f.wind_max) : null;
+      html += `<div class="forecast-item">
+        <div class="d-flex justify-content-between align-items-start">
+          <div class="fc-date">${dayNames[d.getDay()]}, ${d.toLocaleDateString('id-ID',{day:'numeric',month:'short'})}</div>
+          ${cat ? `<span style="font-size:0.7rem;color:${cat.hex}">${cat.icon} ${cat.label}</span>` : ''}
+        </div>
+        <div class="fc-badges">
+          ${f.wind_max!=null?`<span class="fc-badge"><i class="bi bi-wind me-1"></i>${f.wind_max.toFixed(1)} m/s</span>`:''}
+          ${f.temp_max!=null?`<span class="fc-badge"><i class="bi bi-thermometer me-1"></i>${f.temp_max}°C</span>`:''}
+          ${f.rain!=null?`<span class="fc-badge"><i class="bi bi-droplet me-1"></i>${f.rain} mm</span>`:''}
+        </div>
+      </div>`;
+    });
+    html += `<div class="mt-2 pt-1 border-top border-secondary">
+      <small class="text-muted" style="font-size:0.7rem"><i class="bi bi-clock me-1"></i>Sumber: ${data.source}</small></div>`;
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<div class="text-muted text-center py-3 small"><i class="bi bi-wifi-off d-block fs-3 mb-2 opacity-50"></i>Data tidak tersedia</div>`;
+  }
+}
+
+loadHistorical(60);
+loadForecast();
+</script>
+{% endblock %}
